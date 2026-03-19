@@ -84,7 +84,20 @@ async def verify(lean_code: str) -> LeanResult:
                     error="\n".join(error_messages),
                 )
 
-            # No errors — compilation passed
+            # Path 3: Reject proofs that use 'sorry' (Lean reports this as a warning)
+            sorry_warnings = [
+                msg.get("data", "")
+                for msg in messages
+                if msg.get("severity") == "warning"
+                and "sorry" in msg.get("data", "").lower()
+            ]
+            if sorry_warnings:
+                return LeanResult(
+                    status="rejected",
+                    error="Proof uses 'sorry'",
+                )
+
+            # No errors or sorry — compilation passed
             return LeanResult(status="passed")
 
     except httpx.TimeoutException:
