@@ -20,15 +20,15 @@ class LeanResult:
 async def verify(lean_code: str) -> LeanResult:
     """Send lean code to the Kimina Lean Server for verification.
 
-    Kimina API format:
+    Kimina API:
       POST /verify
       {"codes": [{"custom_id": "...", "proof": "..."}], "timeout": 60}
 
-    Response:
-      {"results": [{"custom_id": "...", "error": null|"...", "response": {...}}]}
+    Response has two error paths:
+      1. Top-level "error" field: timeout/crash (error is a string)
+      2. response.messages with severity "error": compilation failure
 
-    If error is null, the proof compiled successfully (passed).
-    If error is a string, the proof failed (rejected or timeout).
+    If neither error path triggers, the code compiled successfully.
     """
     request_id = uuid4().hex[:12]
 
@@ -55,16 +55,32 @@ async def verify(lean_code: str) -> LeanResult:
                 return LeanResult(status="rejected", error="No results from Lean server")
 
             result = results[0]
-            error = result.get("error")
 
-            if error is None:
-                return LeanResult(status="passed")
+            # Path 1: Top-level error (timeout, REPL crash, etc.)
+            top_error = result.get("error")
+            if top_error is not None:
+                if "timed out" in top_error.lower():
+                    return LeanResult(status="timeout", error=top_error)
+                return LeanResult(status="rejected", error=top_error)
 
-            # Kimina returns timeout errors as error strings containing "timed out"
-            if "timed out" in error.lower():
-                return LeanResult(status="timeout", error=error)
+            # Path 2: Check response.messages for compilation errors
+            resp = result.get("response", {})
+            messages = resp.get("messages", []) if resp else []
 
-            return LeanResult(status="rejected", error=error)
+            error_messages = [
+                msg.get("data", "Unknown error")
+                for msg in messages
+                if msg.get("severity") == "error"
+            ]
+
+            if error_messages:
+                return LeanResult(
+                    status="rejected",
+                    error="\n".join(error_messages),
+                )
+
+            # No errors — compilation passed
+            return LeanResult(status="passed")
 
     except httpx.TimeoutException:
         return LeanResult(status="timeout", error="Lean verification timed out")
