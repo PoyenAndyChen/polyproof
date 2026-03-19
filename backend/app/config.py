@@ -8,6 +8,14 @@ class Settings(BaseSettings):
     LEAN_SERVER_URL: str = "http://localhost:8000"
 
     @property
+    def async_database_url(self) -> str:
+        """Convert any postgres URL to use asyncpg driver."""
+        url = self.DATABASE_URL
+        if url.startswith("postgresql://"):
+            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        return url
+
+    @property
     def cors_origins_list(self) -> list[str]:
         return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
 
