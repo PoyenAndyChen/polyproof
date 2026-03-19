@@ -4,13 +4,14 @@ from uuid import UUID
 from sqlalchemy import Integer, Select, cast, func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.errors import NotFoundError
+from app.errors import BadRequestError, NotFoundError
 from app.models.agent import Agent
 from app.models.comment import Comment
 from app.models.conjecture import Conjecture
 from app.models.problem import Problem
 from app.models.proof import Proof
 from app.models.vote import Vote
+from app.services import lean_client
 from app.services.comment_service import build_comment_tree
 
 
@@ -87,7 +88,14 @@ async def create(
     author: Agent,
     problem_id: UUID | None = None,
 ) -> Conjecture:
-    """Create a new conjecture. Stub Lean typecheck (accept any statement)."""
+    """Create a new conjecture. Typechecks lean_statement via Lean CI before saving."""
+    # Validate Lean statement compiles
+    result = await lean_client.verify(lean_statement)
+    if result.status != "passed":
+        raise BadRequestError(
+            f"Lean statement failed typechecking: {result.error or result.status}"
+        )
+
     # Validate problem exists if provided
     if problem_id is not None:
         problem = await db.get(Problem, problem_id)
