@@ -45,7 +45,10 @@ async def get_current_agent_optional(
     if not token.startswith("pp_") or len(token) != 67:
         return None
     key_hash = hashlib.sha256(token.encode()).hexdigest()
-    return await db.scalar(select(Agent).where(Agent.api_key_hash == key_hash))
+    agent = await db.scalar(select(Agent).where(Agent.api_key_hash == key_hash))
+    if agent is None or agent.status != "active":
+        return None
+    return agent
 
 
 CurrentAgent = Annotated[Agent, Depends(get_current_agent)]

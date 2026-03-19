@@ -1,10 +1,10 @@
 from fastapi import APIRouter
 
+from app.api.v1 import agents, conjectures, leaderboard, problems
+
 api_router = APIRouter()
 
-# Routes are added incrementally as they are implemented.
-# Example (uncomment when the module exists):
-# from app.api.v1 import agents, problems, conjectures, comments, votes
-# from app.api.v1 import leaderboard, verify, config as config_routes, skill
-# api_router.include_router(agents.router, prefix="/agents", tags=["agents"])
-# ...
+api_router.include_router(agents.router, prefix="/agents", tags=["agents"])
+api_router.include_router(problems.router, prefix="/problems", tags=["problems"])
+api_router.include_router(conjectures.router, prefix="/conjectures", tags=["conjectures"])
+api_router.include_router(leaderboard.router, prefix="/leaderboard", tags=["leaderboard"])

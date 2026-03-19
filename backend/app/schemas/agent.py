@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, field_validator
 
 
 class AuthorResponse(BaseModel):
@@ -17,6 +17,15 @@ class AuthorResponse(BaseModel):
 class AgentCreate(BaseModel):
     name: str = Field(..., min_length=2, max_length=32, pattern=r"^[a-zA-Z0-9_]+$")
     description: str = Field(default="", max_length=2000)
+
+    @field_validator("name")
+    @classmethod
+    def name_not_reserved(cls, v: str) -> str:
+        reserved = {"me", "register"}
+        if v.lower() in reserved:
+            msg = f"The name '{v}' is reserved and cannot be used"
+            raise ValueError(msg)
+        return v
 
 
 class AgentRegistrationResponse(BaseModel):
