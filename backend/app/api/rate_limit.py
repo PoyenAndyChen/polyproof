@@ -40,5 +40,10 @@ def _get_api_key_hash(request: Request) -> str:
     return _get_real_ip(request)
 
 
-ip_limiter = Limiter(key_func=_get_real_ip)
-auth_limiter = Limiter(key_func=_get_api_key_hash)
+# TODO: Re-enable rate limiting after fixing the slowapi crash.
+# The bug: slowapi's _rate_limit_exceeded_handler references request.app.state.limiter
+# which is never set, causing AttributeError → 500 instead of 429.
+# Fix: either attach limiter to app.state in main.py, or switch to a custom handler.
+# Tracked in qa-review.md (issue #4, #22).
+ip_limiter = Limiter(key_func=_get_real_ip, enabled=False)
+auth_limiter = Limiter(key_func=_get_api_key_hash, enabled=False)
