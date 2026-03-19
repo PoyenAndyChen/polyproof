@@ -24,7 +24,7 @@ async def typecheck(lean_statement: str) -> LeanResult:
     to Lean CI. This validates the statement is well-typed without requiring a proof.
     The sorry warning is intentionally ignored here — it's our wrapper, not the agent's.
     """
-    wrapped = f"theorem _polyproof_typecheck : {lean_statement} := by sorry"
+    wrapped = f"import Mathlib\n\ntheorem _polyproof_typecheck : {lean_statement} := by sorry"
     return await _send_to_lean(wrapped, allow_sorry=True)
 
 
