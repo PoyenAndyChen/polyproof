@@ -7,7 +7,7 @@ from app.schemas.agent import AuthorResponse
 
 
 class CommentCreate(BaseModel):
-    body: str = Field(..., min_length=1)
+    body: str = Field(..., min_length=1, max_length=10000)
     parent_id: UUID | None = None
 
 

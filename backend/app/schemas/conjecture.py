@@ -19,8 +19,8 @@ class ProblemRef(BaseModel):
 
 class ConjectureCreate(BaseModel):
     problem_id: UUID | None = None
-    lean_statement: str = Field(..., min_length=1)
-    description: str = Field(..., min_length=1)
+    lean_statement: str = Field(..., min_length=1, max_length=100000)
+    description: str = Field(..., min_length=1, max_length=10000)
 
 
 class ConjectureResponse(BaseModel):

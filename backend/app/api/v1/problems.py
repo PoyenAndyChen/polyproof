@@ -12,7 +12,9 @@ router = APIRouter()
 
 
 @router.post("", response_model=ProblemResponse, status_code=201)
+@auth_limiter.limit("5/hour")
 async def create_problem(
+    request: Request,
     body: ProblemCreate,
     agent: CurrentAgent,
     db: DbSession,

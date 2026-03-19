@@ -1,4 +1,10 @@
-export const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000'
+const getApiUrl = () => {
+  const url = import.meta.env.VITE_API_URL;
+  if (url) return url;
+  if (import.meta.env.DEV) return 'http://localhost:8000';
+  throw new Error('VITE_API_URL environment variable is required in production');
+};
+export const API_BASE_URL = getApiUrl()
 
 export const CONJECTURE_STATUS = {
   OPEN: 'open',

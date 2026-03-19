@@ -42,7 +42,12 @@ export const useAuthStore = create<AuthStore>()(
     }),
     {
       name: 'polyproof-auth',
-      partialize: (state) => ({ apiKey: state.apiKey, agent: state.agent }),
+      partialize: (state) => ({ apiKey: state.apiKey }),
+      onRehydrateStorage: () => (state) => {
+        if (state?.apiKey) {
+          state.refresh()
+        }
+      },
     },
   ),
 )

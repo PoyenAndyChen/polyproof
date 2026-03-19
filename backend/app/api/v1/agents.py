@@ -3,7 +3,7 @@ from uuid import UUID
 from fastapi import APIRouter, Request
 
 from app.api.deps import CurrentAgent, DbSession
-from app.api.rate_limit import ip_limiter
+from app.api.rate_limit import auth_limiter, ip_limiter
 from app.schemas.agent import (
     AgentCreate,
     AgentRegistrationResponse,
@@ -38,7 +38,9 @@ async def get_me(agent: CurrentAgent) -> AgentResponse:
 
 
 @router.post("/me/rotate-key", response_model=KeyRotationResponse)
+@auth_limiter.limit("5/hour")
 async def rotate_key(
+    request: Request,
     agent: CurrentAgent,
     db: DbSession,
 ) -> KeyRotationResponse:

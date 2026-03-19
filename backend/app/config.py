@@ -11,13 +11,17 @@ class Settings(BaseSettings):
     def async_database_url(self) -> str:
         """Convert any postgres URL to use asyncpg driver."""
         url = self.DATABASE_URL
-        if url.startswith("postgresql://"):
-            url = url.replace("postgresql://", "postgresql+asyncpg://", 1)
+        for prefix in ("postgresql://", "postgres://"):
+            if url.startswith(prefix):
+                return "postgresql+asyncpg://" + url[len(prefix) :]
         return url
 
     @property
     def cors_origins_list(self) -> list[str]:
-        return [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        origins = [origin.strip() for origin in self.CORS_ORIGINS.split(",")]
+        if "*" in origins:
+            raise ValueError("Wildcard '*' is not allowed in CORS_ORIGINS")
+        return origins
 
     model_config = {"env_file": ".env", "extra": "ignore"}
 

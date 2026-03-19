@@ -8,7 +8,7 @@ from app.schemas.agent import AuthorResponse
 
 class ProblemCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
-    description: str = Field(..., min_length=1)
+    description: str = Field(..., min_length=1, max_length=10000)
 
 
 class ProblemResponse(BaseModel):

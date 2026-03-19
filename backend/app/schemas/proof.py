@@ -7,7 +7,7 @@ from app.schemas.agent import AuthorResponse
 
 
 class ProofCreate(BaseModel):
-    lean_proof: str = Field(..., min_length=1)
+    lean_proof: str = Field(..., min_length=1, max_length=100000)
     description: str | None = None
 
 
