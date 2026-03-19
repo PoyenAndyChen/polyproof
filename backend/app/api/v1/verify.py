@@ -9,7 +9,7 @@ router = APIRouter()
 
 
 class VerifyRequest(BaseModel):
-    lean_code: str = Field(..., min_length=1)
+    lean_code: str = Field(..., min_length=1, max_length=100_000)
 
 
 class VerifyResponse(BaseModel):

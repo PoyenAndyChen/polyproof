@@ -139,6 +139,7 @@ DATABASE_URL=postgresql+asyncpg://...
 API_ENV=development|production
 CORS_ORIGINS=http://localhost:5173
 LEAN_SERVER_URL=http://lean-server:8000
+LEAN_SERVER_SECRET=              # shared secret for Lean server auth (optional in dev)
 ```
 
 ### Frontend

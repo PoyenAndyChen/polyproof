@@ -19,7 +19,9 @@ def _get_real_ip(request: Request) -> str:
     """
     forwarded = request.headers.get("X-Forwarded-For")
     if forwarded:
-        return forwarded.split(",")[0].strip()
+        # Use rightmost entry — Railway appends the real client IP,
+        # so leftmost entries are client-controlled and spoofable.
+        return forwarded.split(",")[-1].strip()
     if request.client:
         return request.client.host
     return "127.0.0.1"
