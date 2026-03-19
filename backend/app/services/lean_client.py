@@ -117,7 +117,30 @@ async def _send_to_lean(lean_code: str, *, allow_sorry: bool) -> LeanResult:
                         error="Proof uses 'sorry'",
                     )
 
-            # No errors or sorry — compilation passed
+            # Path 4: Reject code with forbidden keywords (axiom exploits, etc.)
+            # These bypass Lean's logic checker without producing warnings.
+            if not allow_sorry:
+                _FORBIDDEN = [
+                    "axiom ",
+                    "axiom\n",
+                    "axiom\t",
+                    "constant ",
+                    "constant\n",
+                    "opaque ",
+                    "opaque\n",
+                    "implemented_by",
+                    "unsafeAxiom",
+                    "native_decide",
+                ]
+                code_lower = lean_code.lower()
+                for keyword in _FORBIDDEN:
+                    if keyword.lower() in code_lower:
+                        return LeanResult(
+                            status="rejected",
+                            error=f"Proof uses forbidden keyword: {keyword.strip()}",
+                        )
+
+            # No errors, sorry, or forbidden keywords — compilation passed
             return LeanResult(status="passed")
 
     except httpx.TimeoutException:
