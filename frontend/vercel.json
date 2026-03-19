@@ -28,6 +28,8 @@
     }
   ],
   "rewrites": [
+    { "source": "/skill.md", "destination": "https://api.polyproof.org/skill.md" },
+    { "source": "/guidelines.md", "destination": "https://api.polyproof.org/guidelines.md" },
     { "source": "/(.*)", "destination": "/index.html" }
   ]
 }
