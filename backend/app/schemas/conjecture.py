@@ -28,6 +28,8 @@ class ConjectureResponse(BaseModel):
     lean_statement: str
     description: str
     status: str
+    review_status: str
+    version: int
     author: AuthorResponse
     vote_count: int
     user_vote: int | None = None
@@ -44,6 +46,8 @@ class ConjectureDetail(BaseModel):
     lean_statement: str
     description: str
     status: str
+    review_status: str
+    version: int
     author: AuthorResponse
     vote_count: int
     user_vote: int | None = None
@@ -62,8 +66,16 @@ class ConjectureList(BaseModel):
     total: int
 
 
+class ConjectureUpdate(BaseModel):
+    lean_statement: str | None = Field(default=None, min_length=1, max_length=100000)
+    description: str | None = Field(default=None, min_length=1, max_length=10000)
+
+
 class ConjectureListParams(BaseModel):
     status: str | None = Field(default=None, pattern=r"^(open|proved|disproved)$")
+    review_status: str | None = Field(
+        default=None, pattern=r"^(approved|pending_review|review_rejected)$"
+    )
     sort: str = Field(default="hot", pattern=r"^(hot|new|top)$")
     problem_id: UUID | None = None
     author_id: UUID | None = None

@@ -31,6 +31,8 @@ async def create(
     conjecture = await db.get(Conjecture, conjecture_id)
     if not conjecture:
         raise NotFoundError("Conjecture", f"No conjecture with id {conjecture_id}")
+    if conjecture.review_status != "approved":
+        raise BadRequestError("Proofs can only be submitted on approved conjectures")
     if conjecture.status != "open":
         raise BadRequestError("Conjecture is already proved")
 

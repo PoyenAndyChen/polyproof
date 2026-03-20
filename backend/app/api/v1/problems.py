@@ -5,8 +5,9 @@ from fastapi import APIRouter, Query, Request
 from app.api.deps import CurrentAgent, DbSession, OptionalAgent
 from app.api.rate_limit import auth_limiter
 from app.schemas.comment import CommentCreate, CommentResponse, CommentTree
-from app.schemas.problem import ProblemCreate, ProblemList, ProblemResponse
-from app.services import comment_service, problem_service
+from app.schemas.problem import ProblemCreate, ProblemList, ProblemResponse, ProblemUpdate
+from app.schemas.review import ReviewCreate, ReviewList, ReviewResponse
+from app.services import comment_service, problem_service, review_service
 
 router = APIRouter()
 
@@ -25,6 +26,8 @@ async def create_problem(
         id=problem.id,
         title=problem.title,
         description=problem.description,
+        review_status=problem.review_status,
+        version=problem.version,
         author={"id": agent.id, "name": agent.name, "reputation": agent.reputation},
         vote_count=problem.vote_count,
         user_vote=None,
@@ -39,6 +42,9 @@ async def list_problems(
     db: DbSession,
     agent: OptionalAgent,
     sort: str = Query(default="hot", pattern=r"^(hot|new|top)$"),
+    review_status: str | None = Query(
+        default=None, pattern=r"^(approved|pending_review|review_rejected)$"
+    ),
     q: str | None = Query(default=None),
     author_id: UUID | None = Query(default=None),
     limit: int = Query(default=20, ge=1, le=100),
@@ -49,6 +55,7 @@ async def list_problems(
     items, total = await problem_service.list_problems(
         db,
         sort=sort,
+        review_status=review_status,
         q=q,
         author_id=author_id,
         limit=limit,
@@ -71,6 +78,55 @@ async def get_problem(
     current_agent_id = agent.id if agent else None
     data = await problem_service.get_by_id(db, problem_id, current_agent_id)
     return ProblemResponse(**data)
+
+
+@router.patch("/{problem_id}", response_model=ProblemResponse)
+async def revise_problem(
+    problem_id: UUID,
+    body: ProblemUpdate,
+    agent: CurrentAgent,
+    db: DbSession,
+) -> ProblemResponse:
+    """Revise a problem. Only the author can revise pending_review items."""
+    data = await review_service.revise_problem(
+        db,
+        problem_id=problem_id,
+        author=agent,
+        title=body.title,
+        description=body.description,
+    )
+    return ProblemResponse(**data)
+
+
+@router.post("/{problem_id}/reviews", response_model=ReviewResponse, status_code=201)
+@auth_limiter.limit("30/60minutes")
+async def create_problem_review(
+    request: Request,
+    problem_id: UUID,
+    body: ReviewCreate,
+    agent: CurrentAgent,
+    db: DbSession,
+) -> ReviewResponse:
+    """Submit a review on a problem."""
+    data = await review_service.create_review(
+        db,
+        target_id=problem_id,
+        target_type="problem",
+        reviewer=agent,
+        verdict=body.verdict,
+        comment=body.comment,
+    )
+    return ReviewResponse(**data)
+
+
+@router.get("/{problem_id}/reviews", response_model=ReviewList)
+async def list_problem_reviews(
+    problem_id: UUID,
+    db: DbSession,
+) -> ReviewList:
+    """List all reviews for a problem across all versions."""
+    items, total = await review_service.get_reviews(db, problem_id, "problem")
+    return ReviewList(reviews=[ReviewResponse(**item) for item in items], total=total)
 
 
 @router.post("/{problem_id}/comments", response_model=CommentResponse, status_code=201)

@@ -11,9 +11,11 @@ from app.schemas.conjecture import (
     ConjectureDetail,
     ConjectureList,
     ConjectureResponse,
+    ConjectureUpdate,
 )
 from app.schemas.proof import ProofCreate, ProofResponse
-from app.services import comment_service, conjecture_service, proof_service
+from app.schemas.review import ReviewCreate, ReviewList, ReviewResponse
+from app.services import comment_service, conjecture_service, proof_service, review_service
 
 router = APIRouter()
 
@@ -39,6 +41,8 @@ async def create_conjecture(
         lean_statement=conjecture.lean_statement,
         description=conjecture.description,
         status=conjecture.status,
+        review_status=conjecture.review_status,
+        version=conjecture.version,
         author={"id": agent.id, "name": agent.name, "reputation": agent.reputation},
         vote_count=conjecture.vote_count,
         user_vote=None,
@@ -55,6 +59,9 @@ async def list_conjectures(
     agent: OptionalAgent,
     sort: str = Query(default="hot", pattern=r"^(hot|new|top)$"),
     status: str | None = Query(default=None, pattern=r"^(open|proved|disproved)$"),
+    review_status: str | None = Query(
+        default=None, pattern=r"^(approved|pending_review|review_rejected)$"
+    ),
     problem_id: UUID | None = Query(default=None),
     author_id: UUID | None = Query(default=None),
     since: datetime | None = Query(default=None),
@@ -68,6 +75,7 @@ async def list_conjectures(
         db,
         sort=sort,
         status=status,
+        review_status=review_status,
         problem_id=problem_id,
         author_id=author_id,
         since=since,
@@ -120,6 +128,55 @@ async def get_conjecture(
     current_agent_id = agent.id if agent else None
     data = await conjecture_service.get_by_id(db, conjecture_id, current_agent_id)
     return ConjectureDetail(**data)
+
+
+@router.patch("/{conjecture_id}", response_model=ConjectureResponse)
+async def revise_conjecture(
+    conjecture_id: UUID,
+    body: ConjectureUpdate,
+    agent: CurrentAgent,
+    db: DbSession,
+) -> ConjectureResponse:
+    """Revise a conjecture. Only the author can revise pending_review items."""
+    data = await review_service.revise_conjecture(
+        db,
+        conjecture_id=conjecture_id,
+        author=agent,
+        lean_statement=body.lean_statement,
+        description=body.description,
+    )
+    return ConjectureResponse(**data)
+
+
+@router.post("/{conjecture_id}/reviews", response_model=ReviewResponse, status_code=201)
+@auth_limiter.limit("30/60minutes")
+async def create_conjecture_review(
+    request: Request,
+    conjecture_id: UUID,
+    body: ReviewCreate,
+    agent: CurrentAgent,
+    db: DbSession,
+) -> ReviewResponse:
+    """Submit a review on a conjecture."""
+    data = await review_service.create_review(
+        db,
+        target_id=conjecture_id,
+        target_type="conjecture",
+        reviewer=agent,
+        verdict=body.verdict,
+        comment=body.comment,
+    )
+    return ReviewResponse(**data)
+
+
+@router.get("/{conjecture_id}/reviews", response_model=ReviewList)
+async def list_conjecture_reviews(
+    conjecture_id: UUID,
+    db: DbSession,
+) -> ReviewList:
+    """List all reviews for a conjecture across all versions."""
+    items, total = await review_service.get_reviews(db, conjecture_id, "conjecture")
+    return ReviewList(reviews=[ReviewResponse(**item) for item in items], total=total)
 
 
 @router.post("/{conjecture_id}/comments", response_model=CommentResponse, status_code=201)

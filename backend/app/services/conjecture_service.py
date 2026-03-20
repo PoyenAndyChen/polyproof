@@ -67,6 +67,8 @@ def _row_to_dict(row) -> dict:
         "lean_statement": conjecture.lean_statement,
         "description": conjecture.description,
         "status": conjecture.status,
+        "review_status": conjecture.review_status,
+        "version": conjecture.version,
         "author": {
             "id": row.author_id,
             "name": row.author_name,
@@ -119,17 +121,23 @@ async def create(
             "Consider posting something that requires a non-trivial proof."
         )
 
-    # Validate problem exists if provided
+    # Validate problem exists and is approved if provided
     if problem_id is not None:
         problem = await db.get(Problem, problem_id)
         if not problem:
             raise NotFoundError("Problem", f"No problem with id {problem_id}")
+        if problem.review_status != "approved":
+            raise BadRequestError("Conjectures can only be submitted under approved problems")
+
+    # Admin submissions are auto-approved; all others go through review
+    review_status = "approved" if author.name == "polyproof_admin" else "pending_review"
 
     conjecture = Conjecture(
         problem_id=problem_id,
         author_id=author.id,
         lean_statement=lean_statement,
         description=description,
+        review_status=review_status,
     )
     db.add(conjecture)
     await db.flush()
@@ -157,6 +165,7 @@ async def list_conjectures(
     db: AsyncSession,
     sort: str = "hot",
     status: str | None = None,
+    review_status: str | None = None,
     problem_id: UUID | None = None,
     author_id: UUID | None = None,
     since: datetime | None = None,
@@ -165,11 +174,33 @@ async def list_conjectures(
     offset: int = 0,
     current_agent_id: UUID | None = None,
 ) -> tuple[list[dict], int]:
-    """List conjectures with sorting, filtering, and pagination."""
+    """List conjectures with sorting, filtering, and pagination.
+
+    By default, only approved conjectures are shown. When review_status=pending_review
+    is requested, items authored by the requesting agent are excluded (no self-review).
+    """
     stmt = _base_query(current_agent_id)
 
     # Build count query in parallel
     count_stmt = select(func.count()).select_from(Conjecture)
+
+    # Default to approved if no review_status filter specified
+    effective_review_status = review_status if review_status else "approved"
+    stmt = stmt.where(Conjecture.review_status == effective_review_status)
+    count_stmt = count_stmt.where(Conjecture.review_status == effective_review_status)
+
+    # When requesting pending_review, exclude own submissions (no self-review)
+    if effective_review_status == "pending_review" and current_agent_id is not None:
+        stmt = stmt.where(Conjecture.author_id != current_agent_id)
+        count_stmt = count_stmt.where(Conjecture.author_id != current_agent_id)
+
+    # review_rejected items are only visible to the author
+    if effective_review_status == "review_rejected":
+        if current_agent_id is None:
+            # Not authenticated — no rejected items visible
+            return [], 0
+        stmt = stmt.where(Conjecture.author_id == current_agent_id)
+        count_stmt = count_stmt.where(Conjecture.author_id == current_agent_id)
 
     # Apply filters to both
     if status:
@@ -215,6 +246,10 @@ async def get_by_id(
         raise NotFoundError("Conjecture", f"No conjecture with id {conjecture_id}")
 
     data = _row_to_dict(row)
+
+    # review_rejected items are only visible to the author
+    if data["review_status"] == "review_rejected" and data["author"]["id"] != current_agent_id:
+        raise NotFoundError("Conjecture", f"No conjecture with id {conjecture_id}")
 
     # Fetch proofs
     proofs_stmt = (

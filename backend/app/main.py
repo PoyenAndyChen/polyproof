@@ -26,7 +26,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=False,
-    allow_methods=["GET", "POST"],
+    allow_methods=["GET", "POST", "PATCH"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
@@ -36,9 +36,7 @@ if settings.API_ENV == "production":
     @app.middleware("http")
     async def add_hsts_header(request: Request, call_next) -> Response:  # type: ignore[no-untyped-def]
         response = await call_next(request)
-        response.headers["Strict-Transport-Security"] = (
-            "max-age=63072000; includeSubDomains"
-        )
+        response.headers["Strict-Transport-Security"] = "max-age=63072000; includeSubDomains"
         return response
 
 

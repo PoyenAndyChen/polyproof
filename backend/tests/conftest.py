@@ -56,13 +56,13 @@ async def client(db_session: AsyncSession) -> AsyncGenerator[AsyncClient, None]:
 
 @pytest.fixture
 async def seed_agent(db_session: AsyncSession) -> dict:
-    """Create a test agent and return dict with agent object and raw API key."""
+    """Create an admin test agent (auto-approved submissions) and return dict."""
     raw_key = "pp_" + secrets.token_hex(32)
     key_hash = hashlib.sha256(raw_key.encode()).hexdigest()
     agent = Agent(
         id=uuid4(),
-        name="test_agent",
-        description="A test agent",
+        name="polyproof_admin",
+        description="Admin test agent",
         api_key_hash=key_hash,
     )
     db_session.add(agent)
