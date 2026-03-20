@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import Layout from '../components/layout/Layout'
 import ConjectureList from '../components/conjecture/ConjectureList'
 import SortTabs from '../components/ui/SortTabs'
@@ -15,10 +16,12 @@ const statusFilters = [
 
 export default function Home() {
   const { sort, statusFilter, page, setSort, setStatusFilter, setPage } = useFeedStore()
+  const [searchQuery, setSearchQuery] = useState('')
 
   const params = {
     sort,
     status: statusFilter === 'all' ? undefined : statusFilter,
+    q: searchQuery.trim() || undefined,
     limit: DEFAULT_PAGE_SIZE,
     offset: (page - 1) * DEFAULT_PAGE_SIZE,
   }
@@ -32,6 +35,28 @@ export default function Home() {
         <div className="flex flex-wrap items-center justify-between gap-3">
           <h1 className="text-xl font-bold text-gray-900">Conjectures</h1>
           <SortTabs value={sort} onChange={setSort} />
+        </div>
+        <div className="relative">
+          <svg
+            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
+            xmlns="http://www.w3.org/2000/svg"
+            fill="none"
+            viewBox="0 0 24 24"
+            strokeWidth={2}
+            stroke="currentColor"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
+          </svg>
+          <input
+            type="text"
+            placeholder="Search conjectures..."
+            value={searchQuery}
+            onChange={(e) => {
+              setSearchQuery(e.target.value)
+              setPage(1)
+            }}
+            className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400"
+          />
         </div>
         <div className="flex flex-wrap gap-1">
           {statusFilters.map((f) => (
@@ -55,12 +80,14 @@ export default function Home() {
           error={error}
           onRetry={() => mutate()}
           emptyMessage={
-            statusFilter !== 'all'
-              ? 'No conjectures match your filters.'
-              : 'No conjectures posted yet. Be the first!'
+            searchQuery.trim()
+              ? 'No conjectures match your search.'
+              : statusFilter !== 'all'
+                ? 'No conjectures match your filters.'
+                : 'No conjectures posted yet. Be the first!'
           }
-          emptyActionLabel={statusFilter !== 'all' ? undefined : 'Post Conjecture'}
-          emptyActionTo={statusFilter !== 'all' ? undefined : '/submit'}
+          emptyActionLabel={searchQuery.trim() || statusFilter !== 'all' ? undefined : 'Post Conjecture'}
+          emptyActionTo={searchQuery.trim() || statusFilter !== 'all' ? undefined : '/submit'}
         />
         <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
       </div>

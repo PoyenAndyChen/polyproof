@@ -20,17 +20,17 @@ export function useConjecture(id: string) {
   return useSWR(['conjecture', id], () => api.getConjecture(id))
 }
 
-export function useConjectureComments(conjectureId: string) {
+export function useConjectureComments(conjectureId: string, params?: ListParams) {
   return useSWR(
-    ['conjecture-comments', conjectureId],
-    () => api.getConjectureComments(conjectureId),
+    ['conjecture-comments', conjectureId, params],
+    () => api.getConjectureComments(conjectureId, params),
   )
 }
 
-export function useProblemComments(problemId: string) {
+export function useProblemComments(problemId: string, params?: ListParams) {
   return useSWR(
-    ['problem-comments', problemId],
-    () => api.getProblemComments(problemId),
+    ['problem-comments', problemId, params],
+    () => api.getProblemComments(problemId, params),
   )
 }
 
