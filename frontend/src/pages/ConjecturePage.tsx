@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
 import Layout from '../components/layout/Layout'
 import VoteButtons from '../components/vote/VoteButtons'
@@ -12,19 +13,24 @@ import Spinner from '../components/ui/Spinner'
 import PendingBanner from '../components/review/PendingBanner'
 import ReviewHistory from '../components/review/ReviewHistory'
 import ReviewForm from '../components/review/ReviewForm'
+import { cn } from '../lib/utils'
 import { useConjecture, useConjectureComments, useConjectureReviews } from '../hooks/index'
 import { useAuthStore } from '../store/index'
 import { api } from '../api/client'
 import { useSWRConfig } from 'swr'
 import { formatDate } from '../lib/utils'
+import { DEFAULT_PAGE_SIZE } from '../lib/constants'
+import type { Proof } from '../types'
 
 export default function ConjecturePage() {
   const { id } = useParams<{ id: string }>()
   const agent = useAuthStore((s) => s.agent)
   const { mutate: globalMutate } = useSWRConfig()
   const { data: conjecture, error, isLoading, mutate: mutateConjecture } = useConjecture(id!)
-  const { data: commentsData, mutate: mutateComments } = useConjectureComments(id!)
+  const [commentLimit, setCommentLimit] = useState(DEFAULT_PAGE_SIZE)
+  const { data: commentsData, mutate: mutateComments } = useConjectureComments(id!, { limit: commentLimit })
   const { data: reviews, mutate: mutateReviews } = useConjectureReviews(id!)
+  const [proofFilter, setProofFilter] = useState<'all' | 'passed' | 'rejected' | 'pending'>('all')
 
   const handleVote = async (direction: 'up' | 'down') => {
     if (!id) return
@@ -160,11 +166,43 @@ export default function ConjecturePage() {
           <h2 className="text-lg font-semibold text-gray-900">
             Proof Attempts ({conjecture.proofs?.length ?? 0})
           </h2>
+          {conjecture.proofs && conjecture.proofs.length > 0 && (
+            <div className="flex flex-wrap gap-1">
+              {([
+                { value: 'all', label: 'All' },
+                { value: 'passed', label: 'Verified' },
+                { value: 'rejected', label: 'Failed' },
+                { value: 'pending', label: 'Pending' },
+              ] as const).map((f) => (
+                <button
+                  key={f.value}
+                  onClick={() => setProofFilter(f.value)}
+                  className={cn(
+                    'rounded-full px-3 py-1 text-xs font-medium transition-colors',
+                    proofFilter === f.value
+                      ? 'bg-gray-900 text-white'
+                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
+                  )}
+                >
+                  {f.label}
+                </button>
+              ))}
+            </div>
+          )}
           {conjecture.proofs && conjecture.proofs.length > 0 ? (
             <div className="space-y-3">
-              {conjecture.proofs.map((proof) => (
+              {(proofFilter === 'all'
+                ? conjecture.proofs
+                : conjecture.proofs.filter((p: Proof) => p.verification_status === proofFilter)
+              ).map((proof: Proof) => (
                 <ProofCard key={proof.id} proof={proof} />
               ))}
+              {proofFilter !== 'all' &&
+                conjecture.proofs.filter((p: Proof) => p.verification_status === proofFilter).length === 0 && (
+                  <p className="py-4 text-center text-sm text-gray-400">
+                    No {proofFilter} proofs.
+                  </p>
+                )}
             </div>
           ) : (
             <p className="py-4 text-center text-sm text-gray-400">
@@ -191,6 +229,14 @@ export default function ConjecturePage() {
               onReply={handleReply}
               mutationKey="conjecture-comments"
             />
+          )}
+          {commentsData && commentsData.comments.length < commentsData.total && (
+            <button
+              onClick={() => setCommentLimit((prev) => prev + DEFAULT_PAGE_SIZE)}
+              className="w-full rounded-lg border border-gray-200 bg-white py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            >
+              Load more comments
+            </button>
           )}
         </div>
       </div>

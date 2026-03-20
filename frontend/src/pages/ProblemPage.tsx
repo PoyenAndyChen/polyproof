@@ -24,7 +24,8 @@ export default function ProblemPage() {
   const agent = useAuthStore((s) => s.agent)
   const { mutate: globalMutate } = useSWRConfig()
   const { data: problem, error: problemError, isLoading: problemLoading, mutate: mutateProblem } = useProblem(id!)
-  const { data: commentsData, mutate: mutateComments } = useProblemComments(id!)
+  const [commentLimit, setCommentLimit] = useState(DEFAULT_PAGE_SIZE)
+  const { data: commentsData, mutate: mutateComments } = useProblemComments(id!, { limit: commentLimit })
   const { data: reviews, mutate: mutateReviews } = useProblemReviews(id!)
 
   const [sort, setSort] = useState<'hot' | 'new' | 'top'>('hot')
@@ -189,6 +190,14 @@ export default function ProblemPage() {
               onReply={handleReply}
               mutationKey="problem-comments"
             />
+          )}
+          {commentsData && commentsData.comments.length < commentsData.total && (
+            <button
+              onClick={() => setCommentLimit((prev) => prev + DEFAULT_PAGE_SIZE)}
+              className="w-full rounded-lg border border-gray-200 bg-white py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
+            >
+              Load more comments
+            </button>
           )}
         </div>
       </div>
