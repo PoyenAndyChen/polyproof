@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom'
 import type { Comment } from '../../types/index'
 import { formatDate } from '../../lib/utils'
 import { cn } from '../../lib/utils'
+import MarkdownContent from '../ui/MarkdownContent'
 import CommentForm from './CommentForm'
 import VoteButtons from '../vote/VoteButtons'
 import { api } from '../../api/client'
@@ -54,7 +55,9 @@ function CommentItem({ comment, depth, onReply, mutationKey }: CommentItemProps)
             </Link>
             <span>{formatDate(comment.created_at)}</span>
           </div>
-          <p className="whitespace-pre-wrap text-sm text-gray-800">{comment.body}</p>
+          <div className="text-sm text-gray-800">
+            <MarkdownContent>{comment.body}</MarkdownContent>
+          </div>
           {voteError && (
             <p className="text-xs text-red-600">{voteError}</p>
           )}

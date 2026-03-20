@@ -17,6 +17,7 @@ import { useConjecture, useConjectureComments, useConjectureReviews } from '../h
 import { useAuthStore } from '../store/index'
 import { api } from '../api/client'
 import { useSWRConfig } from 'swr'
+import MarkdownContent from '../components/ui/MarkdownContent'
 import { formatDate } from '../lib/utils'
 
 export default function ConjecturePage() {
@@ -112,7 +113,9 @@ export default function ConjecturePage() {
                 </span>
               </div>
               {conjecture.description && (
-                <p className="mb-3 whitespace-pre-wrap text-sm text-gray-700">{conjecture.description}</p>
+                <div className="mb-3 text-sm text-gray-700">
+                  <MarkdownContent>{conjecture.description}</MarkdownContent>
+                </div>
               )}
               <div className="mb-3">
                 <LeanCodeBlock code={conjecture.lean_statement} />

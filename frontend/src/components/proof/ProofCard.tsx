@@ -2,6 +2,7 @@ import { Link } from 'react-router-dom'
 import { CheckCircle, XCircle, Clock, AlertTriangle } from 'lucide-react'
 import type { Proof } from '../../types/index'
 import { formatDate } from '../../lib/utils'
+import MarkdownContent from '../ui/MarkdownContent'
 import LeanCodeBlock from '../code/LeanCodeBlock'
 import { cn } from '../../lib/utils'
 
@@ -58,7 +59,9 @@ export default function ProofCard({ proof }: { proof: Proof }) {
       </div>
       <div className="p-4">
         {proof.description && (
-          <p className="mb-3 text-sm text-gray-700">{proof.description}</p>
+          <div className="mb-3 text-sm text-gray-700">
+            <MarkdownContent>{proof.description}</MarkdownContent>
+          </div>
         )}
         <LeanCodeBlock code={proof.lean_proof} collapsible />
         {proof.verification_status === 'rejected' && proof.verification_error && (

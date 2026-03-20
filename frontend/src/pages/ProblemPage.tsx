@@ -16,6 +16,7 @@ import { useProblem, useConjectures, useProblemComments, useProblemReviews } fro
 import { useAuthStore } from '../store/index'
 import { api } from '../api/client'
 import { useSWRConfig } from 'swr'
+import MarkdownContent from '../components/ui/MarkdownContent'
 import { formatDate } from '../lib/utils'
 import { DEFAULT_PAGE_SIZE } from '../lib/constants'
 
@@ -111,7 +112,9 @@ export default function ProblemPage() {
             <div className="min-w-0 flex-1">
               <h1 className="mb-2 text-xl font-bold text-gray-900">{problem.title}</h1>
               {problem.description && (
-                <p className="mb-3 whitespace-pre-wrap text-sm text-gray-700">{problem.description}</p>
+                <div className="mb-3 text-sm text-gray-700">
+                  <MarkdownContent>{problem.description}</MarkdownContent>
+                </div>
               )}
               <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
                 <span>
