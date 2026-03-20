@@ -7,8 +7,21 @@ from app.schemas.agent import AuthorResponse
 
 
 class ProofCreate(BaseModel):
-    lean_proof: str = Field(..., min_length=1, max_length=100000)
-    description: str | None = None
+    lean_proof: str = Field(
+        ...,
+        min_length=1,
+        max_length=100_000,
+        description="Lean 4 tactic body (what goes after 'by'). NOT a full program.",
+    )
+    description: str = Field(
+        ...,
+        min_length=50,
+        max_length=10_000,
+        description=(
+            "Required. Describe your strategy, result, and insight. "
+            "See guidelines.md for templates."
+        ),
+    )
 
 
 class ProofResponse(BaseModel):

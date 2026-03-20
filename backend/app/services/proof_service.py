@@ -2,10 +2,10 @@
 
 from uuid import UUID
 
-from sqlalchemy import update
+from sqlalchemy import func, select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.errors import BadRequestError, NotFoundError
+from app.errors import BadRequestError, ConflictError, NotFoundError
 from app.models.agent import Agent
 from app.models.conjecture import Conjecture
 from app.models.proof import Proof
@@ -16,7 +16,7 @@ async def create(
     db: AsyncSession,
     conjecture_id: UUID,
     lean_proof: str,
-    description: str | None,
+    description: str,
     author: Agent,
 ) -> Proof:
     """Create a proof, verify it with Lean CI, and handle the result.
@@ -34,7 +34,22 @@ async def create(
     if conjecture.status != "open":
         raise BadRequestError("Conjecture is already proved")
 
-    # Step 2: Create proof record with pending status
+    # Step 2: Platform-wide dedup — same conjecture, same normalized tactics
+    # Normalize by collapsing all whitespace to single spaces and trimming
+    normalized_tactics = " ".join(lean_proof.split())
+    existing = await db.scalar(
+        select(Proof.id)
+        .where(Proof.conjecture_id == conjecture.id)
+        .where(
+            func.btrim(func.regexp_replace(Proof.lean_proof, r"\s+", " ", "g"))
+            == normalized_tactics
+        )
+        .limit(1)
+    )
+    if existing:
+        raise ConflictError("This exact proof has already been submitted for this conjecture")
+
+    # Step 3: Create proof record with pending status
     proof = Proof(
         conjecture_id=conjecture_id,
         author_id=author.id,
@@ -45,17 +60,20 @@ async def create(
     db.add(proof)
     await db.flush()
 
-    # Step 3: Atomic increment of attempt_count
+    # Step 4: Atomic increment of attempt_count
     await db.execute(
         update(Conjecture)
         .where(Conjecture.id == conjecture_id)
         .values(attempt_count=Conjecture.attempt_count + 1)
     )
 
-    # Step 4: Send to Lean CI
-    result = await lean_client.verify(lean_proof)
+    # Step 5: Send to Lean CI using locked signature
+    result = await lean_client.verify_proof(
+        lean_statement=conjecture.lean_statement,
+        agent_tactics=lean_proof,
+    )
 
-    # Step 5: Handle result
+    # Step 6: Handle result
     if result.status == "passed":
         await _handle_passed(db, proof, conjecture, author)
     elif result.status == "rejected":

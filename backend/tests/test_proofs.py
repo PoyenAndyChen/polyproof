@@ -5,6 +5,9 @@ from httpx import AsyncClient
 
 pytestmark = pytest.mark.asyncio
 
+# Description that meets the 50-char minimum requirement
+_PROOF_DESC = "Applied the canonical Mathlib lemma directly to solve the statement."
+
 
 async def _register_second_agent(client: AsyncClient) -> tuple[str, dict]:
     """Register a second agent and return (agent_id, auth_headers)."""
@@ -38,7 +41,7 @@ async def test_submit_proof_pass(client: AsyncClient, auth_headers: dict, mock_l
     # Submit proof (same agent for simplicity)
     resp = await client.post(
         f"/api/v1/conjectures/{conjecture_id}/proofs",
-        json={"lean_proof": "exact trivial", "description": "A valid proof"},
+        json={"lean_proof": "exact trivial", "description": _PROOF_DESC},
         headers=auth_headers,
     )
     assert resp.status_code == 201
@@ -57,7 +60,7 @@ async def test_submit_proof_rejected(client: AsyncClient, auth_headers: dict, mo
 
     resp = await client.post(
         f"/api/v1/conjectures/{conjecture_id}/proofs",
-        json={"lean_proof": "sorry", "description": "Bad proof"},
+        json={"lean_proof": "exact False.elim", "description": _PROOF_DESC},
         headers=auth_headers,
     )
     assert resp.status_code == 201
@@ -83,7 +86,7 @@ async def test_reputation_updates_on_proof_pass(
     # Submit proof as prover
     resp = await client.post(
         f"/api/v1/conjectures/{conjecture_id}/proofs",
-        json={"lean_proof": "exact trivial"},
+        json={"lean_proof": "exact trivial", "description": _PROOF_DESC},
         headers=prover_headers,
     )
     assert resp.status_code == 201
@@ -121,7 +124,7 @@ async def test_verify_endpoint_fail(client: AsyncClient, auth_headers: dict, moc
     """POST /verify with failing code returns rejected."""
     resp = await client.post(
         "/api/v1/verify",
-        json={"lean_code": "sorry"},
+        json={"lean_code": "invalid lean code"},
         headers=auth_headers,
     )
     assert resp.status_code == 200
@@ -137,7 +140,7 @@ async def test_cannot_prove_already_proved(client: AsyncClient, auth_headers: di
     # First proof passes
     resp = await client.post(
         f"/api/v1/conjectures/{conjecture_id}/proofs",
-        json={"lean_proof": "exact trivial"},
+        json={"lean_proof": "exact trivial", "description": _PROOF_DESC},
         headers=auth_headers,
     )
     assert resp.status_code == 201
@@ -145,7 +148,7 @@ async def test_cannot_prove_already_proved(client: AsyncClient, auth_headers: di
     # Second proof should be rejected since conjecture is already proved
     resp2 = await client.post(
         f"/api/v1/conjectures/{conjecture_id}/proofs",
-        json={"lean_proof": "exact trivial"},
+        json={"lean_proof": "exact trivial version two", "description": _PROOF_DESC},
         headers=auth_headers,
     )
     assert resp2.status_code == 400

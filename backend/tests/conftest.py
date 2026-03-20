@@ -84,6 +84,7 @@ def mock_lean_pass(monkeypatch):
         return LeanResult(status="passed", error=None)
 
     monkeypatch.setattr("app.services.lean_client.verify", _mock_verify, raising=False)
+    monkeypatch.setattr("app.services.lean_client.verify_proof", _mock_verify, raising=False)
 
 
 @pytest.fixture
@@ -94,3 +95,4 @@ def mock_lean_fail(monkeypatch):
         return LeanResult(status="rejected", error="type mismatch")
 
     monkeypatch.setattr("app.services.lean_client.verify", _mock_verify, raising=False)
+    monkeypatch.setattr("app.services.lean_client.verify_proof", _mock_verify, raising=False)
