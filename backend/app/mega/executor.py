@@ -137,39 +137,63 @@ async def _post_comment(
     project_id: UUID,
 ) -> dict:
     """Post a comment via comment_service."""
+    from app.models.agent import Agent
+    from app.models.conjecture import Conjecture
     from app.services import comment_service
 
-    conjecture_id = args.get("conjecture_id") or None
-    comment_project_id = args.get("project_id") or None
+    raw_conjecture_id = args.get("conjecture_id") or None
+    raw_project_id = args.get("project_id") or None
     body = args["body"]
     is_summary = args.get("is_summary", False)
-    parent_comment_id = args.get("parent_comment_id") or None
+    raw_parent_comment_id = args.get("parent_comment_id") or None
 
-    # Fallback: if neither target is specified, use the project_id from context
-    if not conjecture_id and not comment_project_id:
-        comment_project_id = str(project_id)
+    # Parse UUIDs safely
+    def _safe_uuid(val: str | None) -> UUID | None:
+        if not val:
+            return None
+        try:
+            return UUID(val)
+        except ValueError:
+            return None
 
-    from app.models.agent import Agent
+    target_conjecture_id = _safe_uuid(raw_conjecture_id)
+    target_project_id = _safe_uuid(raw_project_id)
+    target_parent_comment_id = _safe_uuid(raw_parent_comment_id)
+
+    # If the LLM passed a conjecture ID, verify it exists
+    if target_conjecture_id:
+        conj = await db.get(Conjecture, target_conjecture_id)
+        if not conj:
+            # Maybe it passed a conjecture ID as project_id — try the other field
+            if target_project_id:
+                conj = await db.get(Conjecture, target_project_id)
+                if conj:
+                    target_conjecture_id = target_project_id
+                    target_project_id = None
+
+    # Fallback: always use the project_id from context for project comments
+    if not target_conjecture_id and not target_project_id:
+        target_project_id = project_id
 
     mega_agent = await db.get(Agent, mega_agent_id)
 
-    if conjecture_id:
+    if target_conjecture_id:
         comment = await comment_service.create_conjecture_comment(
             db=db,
-            conjecture_id=UUID(conjecture_id),
+            conjecture_id=target_conjecture_id,
             body=body,
             author=mega_agent,
             is_summary=is_summary,
-            parent_comment_id=UUID(parent_comment_id) if parent_comment_id else None,
+            parent_comment_id=target_parent_comment_id,
         )
     else:
         comment = await comment_service.create_project_comment(
             db=db,
-            project_id=UUID(comment_project_id),
+            project_id=target_project_id,
             body=body,
             author=mega_agent,
             is_summary=is_summary,
-            parent_comment_id=UUID(parent_comment_id) if parent_comment_id else None,
+            parent_comment_id=target_parent_comment_id,
         )
 
     return {
