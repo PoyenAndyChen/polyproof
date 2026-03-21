@@ -1,40 +1,32 @@
-from uuid import UUID
+"""Private Lean verification endpoint."""
 
 from fastapi import APIRouter, Request
-from pydantic import BaseModel, Field
 
 from app.api.deps import CurrentAgent, DbSession
 from app.api.rate_limit import auth_limiter
 from app.errors import NotFoundError
 from app.models.conjecture import Conjecture
+from app.schemas.verify import VerifyRequest, VerifyResult
 from app.services import lean_client
 
 router = APIRouter()
 
 
-class VerifyRequest(BaseModel):
-    lean_code: str = Field(..., min_length=1, max_length=100_000)
-    conjecture_id: UUID | None = None  # If set, wraps as locked proof
-
-
-class VerifyResponse(BaseModel):
-    status: str
-    error: str | None
-
-
-@router.post("", response_model=VerifyResponse)
-@auth_limiter.limit("10/hour")
+@router.post("", response_model=VerifyResult)
+@auth_limiter.limit("30/hour")
 async def verify_lean(
     request: Request,
     body: VerifyRequest,
     _agent: CurrentAgent,
     db: DbSession,
-) -> VerifyResponse:
-    """Private Lean check. Nothing is stored — no proof record, no reputation change.
+) -> VerifyResult:
+    """Private Lean check. Nothing is stored.
 
-    If conjecture_id is provided, wraps the lean_code as tactics against the
-    conjecture's statement (same locked signature as proof submission).
-    If omitted, sends lean_code as-is for free-form experimentation.
+    With conjecture_id: wraps lean_code with the conjecture's locked signature
+    (same as proof submission). Rejects sorry.
+
+    Without conjecture_id: compiles lean_code as-is via verify_freeform.
+    Rejects sorry.
     """
     if body.conjecture_id is not None:
         conjecture = await db.get(Conjecture, body.conjecture_id)
@@ -42,9 +34,10 @@ async def verify_lean(
             raise NotFoundError("Conjecture", f"No conjecture with id {body.conjecture_id}")
         result = await lean_client.verify_proof(
             lean_statement=conjecture.lean_statement,
-            agent_tactics=body.lean_code,
+            tactics=body.lean_code,
+            conjecture_id=conjecture.id,
         )
     else:
-        result = await lean_client.verify(body.lean_code)
+        result = await lean_client.verify_freeform(body.lean_code)
 
-    return VerifyResponse(status=result.status, error=result.error)
+    return VerifyResult(status=result.status, error=result.error)

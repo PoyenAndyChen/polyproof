@@ -1,7 +1,15 @@
-"""HTTP client for the Kimina Lean Server."""
+"""HTTP client for the Kimina Lean Server.
+
+v4 entry points:
+- typecheck(lean_statement)          — wrap with sorry, validate statement is well-typed
+- verify_proof(lean_statement, tactics, conjecture_id) — locked proof signature
+- verify_disproof(lean_statement, tactics, conjecture_id) — locked disproof (negated)
+- verify_sorry_proof(sorry_proof_code) — compile sorry-proof as-is (with sorry allowed)
+- verify_freeform(code)              — compile as-is, reject sorry
+"""
 
 from dataclasses import dataclass, field
-from uuid import uuid4
+from uuid import UUID, uuid4
 
 import httpx
 
@@ -9,10 +17,8 @@ from app.config import settings
 
 _TIMEOUT = 120.0  # HTTP timeout (Kimina has its own internal timeout too)
 _LEAN_TIMEOUT = 60  # Lean compilation timeout sent to Kimina
-_TRIVIALITY_TIMEOUT = 10  # short timeout — if tactics can't solve in 10s, it's non-trivial
 
-# Unified list of forbidden keywords — checked case-insensitively against
-# agent-submitted code (tactics, full programs, etc.).
+# Forbidden keywords checked against agent-submitted code (tactics, full programs).
 FORBIDDEN_KEYWORDS = [
     "sorry",
     "axiom ",
@@ -48,76 +54,102 @@ class LeanResult:
 
 
 async def typecheck(lean_statement: str) -> LeanResult:
-    """Typecheck a Lean statement (for conjecture submission).
+    """Typecheck a Lean statement (for project creation / conjecture validation).
 
-    Wraps the statement as `theorem _check : <statement> := by sorry` and sends
-    to Lean CI. This validates the statement is well-typed without requiring a proof.
-    The sorry warning is intentionally ignored here — it's our wrapper, not the agent's.
+    Wraps as ``theorem _polyproof_check : <statement> := by sorry`` and compiles.
+    The sorry warning is intentionally ignored — it's our wrapper, not agent code.
     """
-    wrapped = f"import Mathlib\n\ntheorem _polyproof_typecheck : {lean_statement} := by sorry"
+    wrapped = f"import Mathlib\n\ntheorem _polyproof_check : {lean_statement} := by sorry"
     return await _send_to_lean(wrapped, allow_sorry=True)
 
 
-async def triviality_check(lean_statement: str) -> bool:
-    """Returns True if the statement is trivially provable.
+async def verify_proof(lean_statement: str, tactics: str, conjecture_id: UUID) -> LeanResult:
+    """Verify a proof against a conjecture's lean_statement.
 
-    Attempts to prove the statement using standard automation tactics with a
-    short timeout. If the tactics succeed, the statement is considered trivial.
+    Constructs: ``theorem proof_<id> : <statement> := by <tactics>``
+    Then runs ``#print axioms`` to reject non-standard axioms.
     """
+    rejected = _check_forbidden(tactics)
+    if rejected:
+        return rejected
+
+    safe_id = str(conjecture_id).replace("-", "_")
+    indented = "\n  ".join(tactics.splitlines())
     code = (
         f"import Mathlib\n\n"
-        f"theorem _trivial : {lean_statement} := by\n"
-        f"  first | decide | simp | omega | norm_num | ring"
+        f"theorem proof_{safe_id} : {lean_statement} := by\n"
+        f"  {indented}\n\n"
+        f"#print axioms proof_{safe_id}\n"
     )
-    result = await _send_to_lean(code, allow_sorry=False, timeout=_TRIVIALITY_TIMEOUT)
-    return result.status == "passed"
+
+    result = await _send_to_lean(code, allow_sorry=False)
+    if result.status == "passed":
+        result = _check_axioms(result)
+    return result
 
 
-async def verify(lean_code: str) -> LeanResult:
-    """Verify a complete Lean proof (for /verify endpoint backward compatibility).
+async def verify_disproof(lean_statement: str, tactics: str, conjecture_id: UUID) -> LeanResult:
+    r"""Verify a disproof against a conjecture's lean_statement.
 
-    Sends the code as-is to Lean CI. Rejects proofs that use sorry.
+    Constructs: ``theorem disproof_<id> : \u00ac(<statement>) := by <tactics>``
+    Then runs ``#print axioms`` to reject non-standard axioms.
     """
-    return await _send_to_lean(lean_code, allow_sorry=False)
+    rejected = _check_forbidden(tactics)
+    if rejected:
+        return rejected
+
+    safe_id = str(conjecture_id).replace("-", "_")
+    indented = "\n  ".join(tactics.splitlines())
+    code = (
+        f"import Mathlib\n\n"
+        f"theorem disproof_{safe_id} : \u00ac({lean_statement}) := by\n"
+        f"  {indented}\n\n"
+        f"#print axioms disproof_{safe_id}\n"
+    )
+
+    result = await _send_to_lean(code, allow_sorry=False)
+    if result.status == "passed":
+        result = _check_axioms(result)
+    return result
 
 
-async def verify_proof(lean_statement: str, agent_tactics: str) -> LeanResult:
-    """Verify a proof against a specific conjecture statement.
+async def verify_sorry_proof(sorry_proof_code: str) -> LeanResult:
+    """Compile a sorry-proof as-is (typechecks with sorry allowed).
 
-    Constructs a locked Lean file with the conjecture's type as the theorem
-    statement and the agent's tactics as the proof body. Also runs #print axioms
-    to ensure only standard axioms are used.
+    Used during decomposition to validate the sorry-proof structure.
     """
-    # Scan for forbidden constructs in agent tactics
-    tactics_lower = agent_tactics.lower()
+    return await _send_to_lean(sorry_proof_code, allow_sorry=True)
+
+
+async def verify_freeform(code: str) -> LeanResult:
+    """Compile code as-is for the /verify endpoint (without conjecture_id).
+
+    Rejects sorry and forbidden keywords.
+    """
+    return await _send_to_lean(code, allow_sorry=False)
+
+
+# ---------------------------------------------------------------------------
+# Internal helpers
+# ---------------------------------------------------------------------------
+
+
+def _check_forbidden(tactics: str) -> LeanResult | None:
+    """Scan agent tactics for forbidden constructs. Returns LeanResult on rejection."""
+    tactics_lower = tactics.lower()
     for keyword in FORBIDDEN_KEYWORDS:
         if keyword.lower() in tactics_lower:
             return LeanResult(
                 status="rejected",
                 error=f"Proof uses forbidden construct: {keyword.strip()}",
             )
-
-    # Construct locked Lean file — indent every line of tactics
-    indented = "\n  ".join(agent_tactics.splitlines())
-    code = (
-        f"import Mathlib\n\n"
-        f"theorem _polyproof_proof : {lean_statement} := by\n"
-        f"  {indented}\n\n"
-        f"#print axioms _polyproof_proof\n"
-    )
-
-    result = await _send_to_lean(code, allow_sorry=False)
-
-    if result.status == "passed":
-        result = _check_axioms(result)
-
-    return result
+    return None
 
 
 def _check_axioms(result: LeanResult) -> LeanResult:
     """Check that only standard axioms are used.
 
-    Parses the #print axioms output from Lean messages and rejects proofs
+    Parses the ``#print axioms`` output from Lean messages and rejects proofs
     that rely on non-standard axioms (e.g. custom axioms or sorryAx).
     """
     if not result.messages:
@@ -148,8 +180,7 @@ def _check_axioms(result: LeanResult) -> LeanResult:
                         error=f"Proof uses non-standard axioms: {', '.join(sorted(unknown))}",
                     )
 
-        # '#print axioms' with no dependencies outputs
-        # "... declaration does not depend on any axioms"
+        # '#print axioms' with no dependencies
         if msg.get("severity") == "info" and "does not depend on any axioms" in data:
             found_axiom_info = True
 
@@ -246,25 +277,10 @@ async def _send_to_lean(
                         messages=messages,
                     )
 
-            # Path 4: Reject code with forbidden keywords (axiom exploits, etc.)
-            # These bypass Lean's logic checker without producing warnings.
-            # Note: For locked-signature proofs (verify_proof), agent tactics are
-            # already checked before assembly. This check is intentionally kept
-            # for backward compatibility with the free-form verify() path.
-            if not allow_sorry:
-                code_lower = lean_code.lower()
-                for keyword in FORBIDDEN_KEYWORDS:
-                    if keyword.lower() in code_lower:
-                        return LeanResult(
-                            status="rejected",
-                            error=f"Proof uses forbidden keyword: {keyword.strip()}",
-                            messages=messages,
-                        )
-
-            # No errors, sorry, or forbidden keywords — compilation passed
+            # No errors — compilation passed
             return LeanResult(status="passed", messages=messages)
 
     except httpx.TimeoutException:
-        return LeanResult(status="timeout", error="Lean verification timed out")
+        return LeanResult(status="timeout", error="Compilation timed out (60s limit).")
     except httpx.HTTPError as e:
         return LeanResult(status="timeout", error=f"Failed to connect to Lean server: {e}")
