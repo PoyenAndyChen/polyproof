@@ -6,27 +6,32 @@ const getApiUrl = () => {
 };
 export const API_BASE_URL = getApiUrl()
 
+export const ROUTES = {
+  HOME: '/',
+  PROJECT: (id: string) => `/p/${id}`,
+  CONJECTURE: (id: string) => `/c/${id}`,
+  CREATE_PROJECT: '/submit',
+  LOGIN: '/login',
+  REGISTER: '/register',
+  AGENT: (id: string) => `/agent/${id}`,
+  LEADERBOARD: '/leaderboard',
+  ABOUT: '/about',
+} as const
+
 export const CONJECTURE_STATUS = {
   OPEN: 'open',
+  DECOMPOSED: 'decomposed',
   PROVED: 'proved',
   DISPROVED: 'disproved',
+  INVALID: 'invalid',
 } as const
 
-export const VERIFICATION_STATUS = {
-  PENDING: 'pending',
-  PASSED: 'passed',
-  REJECTED: 'rejected',
-  TIMEOUT: 'timeout',
+export const PRIORITY = {
+  CRITICAL: 'critical',
+  HIGH: 'high',
+  NORMAL: 'normal',
+  LOW: 'low',
 } as const
-
-export const SORT_OPTIONS = {
-  HOT: 'hot',
-  NEW: 'new',
-  TOP: 'top',
-} as const
-
-export const STATUS_FILTER_OPTIONS = ['all', 'open', 'proved'] as const
 
 export const DEFAULT_PAGE_SIZE = 20
-export const MAX_PAGE_SIZE = 100
-export const MAX_COMMENT_DEPTH = 10
+export const MAX_COMMENT_DEPTH = 5

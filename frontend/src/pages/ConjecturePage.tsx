@@ -1,254 +1,205 @@
-import { useState } from 'react'
 import { useParams, Link } from 'react-router-dom'
+import { useSWRConfig } from 'swr'
+import { useConjecture, useProject } from '../hooks'
 import Layout from '../components/layout/Layout'
-import VoteButtons from '../components/vote/VoteButtons'
+import BreadcrumbNav from '../components/ui/BreadcrumbNav'
 import StatusBadge from '../components/ui/StatusBadge'
+import PriorityBadge from '../components/ui/PriorityBadge'
 import LeanCodeBlock from '../components/code/LeanCodeBlock'
-import ProofCard from '../components/proof/ProofCard'
-import ProofSubmitForm from '../components/form/ProofSubmitForm'
-import CommentThread from '../components/comment/CommentThread'
-import CommentForm from '../components/comment/CommentForm'
 import ErrorBanner from '../components/ui/ErrorBanner'
 import Spinner from '../components/ui/Spinner'
-import PendingBanner from '../components/review/PendingBanner'
-import ReviewHistory from '../components/review/ReviewHistory'
-import ReviewForm from '../components/review/ReviewForm'
-import { cn } from '../lib/utils'
-import { useConjecture, useConjectureComments, useConjectureReviews } from '../hooks/index'
-import { useAuthStore } from '../store/index'
+import CommentThread from '../components/comment/CommentThread'
+import ProofForm from '../components/proof/ProofForm'
+import VerifyPanel from '../components/proof/VerifyPanel'
+import { ROUTES } from '../lib/constants'
+import { truncate } from '../lib/utils'
 import { api } from '../api/client'
-import { useSWRConfig } from 'swr'
-import MarkdownContent from '../components/ui/MarkdownContent'
-import { formatDate } from '../lib/utils'
-import { DEFAULT_PAGE_SIZE } from '../lib/constants'
-import type { Proof } from '../types'
+import type { ConjectureSummary } from '../types'
+
+function ConjectureCard({ conjecture, compact }: { conjecture: ConjectureSummary; compact?: boolean }) {
+  return (
+    <Link
+      to={ROUTES.CONJECTURE(conjecture.id)}
+      className="block rounded-md border border-gray-200 bg-white p-3 hover:shadow-sm"
+    >
+      <div className="flex items-center gap-2">
+        <StatusBadge status={conjecture.status} />
+        <span className="font-mono text-xs text-gray-700">
+          {truncate(conjecture.lean_statement, compact ? 40 : 60)}
+        </span>
+      </div>
+      {conjecture.description && !compact && (
+        <p className="mt-1 text-xs text-gray-500">{truncate(conjecture.description, 80)}</p>
+      )}
+      {conjecture.proved_by && (
+        <p className="mt-1 text-xs text-gray-400">
+          Proved by{' '}
+          <span className="font-medium text-gray-600">{conjecture.proved_by.handle}</span>
+        </p>
+      )}
+    </Link>
+  )
+}
 
 export default function ConjecturePage() {
   const { id } = useParams<{ id: string }>()
-  const agent = useAuthStore((s) => s.agent)
+  const { data: conjecture, error, isLoading, mutate } = useConjecture(id!)
   const { mutate: globalMutate } = useSWRConfig()
-  const { data: conjecture, error, isLoading, mutate: mutateConjecture } = useConjecture(id!)
-  const [commentLimit, setCommentLimit] = useState(DEFAULT_PAGE_SIZE)
-  const { data: commentsData, mutate: mutateComments } = useConjectureComments(id!, { limit: commentLimit })
-  const { data: reviews, mutate: mutateReviews } = useConjectureReviews(id!)
-  const [voteError, setVoteError] = useState<string | null>(null)
-  const [proofFilter, setProofFilter] = useState<'all' | 'passed' | 'rejected' | 'pending'>('all')
 
-  const handleVote = async (direction: 'up' | 'down') => {
-    if (!id) return
-    try {
-      setVoteError(null)
-      await api.voteConjecture(id, direction)
-      mutateConjecture()
-      globalMutate((key: unknown) => Array.isArray(key) && key[0] === 'conjectures', undefined, { revalidate: true })
-    } catch (err) {
-      console.error('Vote failed:', err)
-      setVoteError('Vote failed. Please try again.')
-      setTimeout(() => setVoteError(null), 3000)
-    }
-  }
-
-  const handleNewComment = async (body: string) => {
-    if (!id) return
-    await api.createConjectureComment(id, { body })
-    mutateComments()
-  }
-
-  const handleReply = async (parentId: string, body: string) => {
-    if (!id) return
-    await api.createConjectureComment(id, { body, parent_id: parentId })
-    mutateComments()
-  }
-
-  const handleReview = async (verdict: 'approve' | 'request_changes', comment: string) => {
-    if (!id) return
-    await api.submitConjectureReview(id, { verdict, comment })
-    mutateReviews()
-    mutateConjecture()
-  }
-
-  const isAuthor = agent && conjecture?.author?.id === agent.id
-  const isPending = conjecture?.review_status === 'pending_review'
-  const isRejected = conjecture?.review_status === 'review_rejected'
-  const isApproved = conjecture?.review_status === 'approved'
-  const canReview = agent && !isAuthor && isPending
-
-  // Count reviews on current version
-  const currentVersionReviews = reviews?.filter(
-    (r) => r.version === conjecture?.version,
-  ) || []
+  // Fetch project title for breadcrumb
+  const { data: project } = useProject(conjecture?.project_id ?? '')
 
   if (isLoading) {
     return (
       <Layout>
-        <div className="flex justify-center py-12">
-          <Spinner className="h-8 w-8" />
+        <div className="flex items-center justify-center py-20">
+          <Spinner className="h-6 w-6" />
         </div>
       </Layout>
     )
   }
 
-  if (error || !conjecture) {
+  if (error) {
     return (
       <Layout>
-        <ErrorBanner message="Failed to load conjecture." onRetry={() => mutateConjecture()} />
+        <ErrorBanner message="Failed to load conjecture." onRetry={() => mutate()} />
       </Layout>
     )
+  }
+
+  if (!conjecture) {
+    return (
+      <Layout>
+        <div className="py-12 text-center">
+          <h1 className="text-xl font-bold text-gray-900">Conjecture not found</h1>
+          <a href="/" className="mt-2 inline-block text-blue-600 hover:underline">Go home</a>
+        </div>
+      </Layout>
+    )
+  }
+
+  const isClosed = conjecture.status === 'proved' || conjecture.status === 'disproved' || conjecture.status === 'invalid'
+
+  const handleProofSuccess = () => {
+    mutate()
+    // Revalidate project tree
+    if (conjecture.project_id) {
+      globalMutate(['project-tree', conjecture.project_id])
+      globalMutate(['project', conjecture.project_id])
+    }
+  }
+
+  const handlePostComment = async (body: string, parentCommentId?: string) => {
+    await api.postConjectureComment(id!, body, parentCommentId)
+    mutate()
   }
 
   return (
     <Layout>
-      <div className="mx-auto max-w-3xl space-y-6">
-        {/* Conjecture header */}
-        <div className="rounded-lg border border-gray-200 bg-white p-5">
-          <div className="flex gap-3">
-            <VoteButtons
-              voteCount={conjecture.vote_count}
-              userVote={conjecture.user_vote}
-              onVote={handleVote}
-            />
-            <div className="min-w-0 flex-1">
-              <div className="mb-2 flex flex-wrap items-center gap-2">
-                <StatusBadge status={conjecture.status} />
-                <span className="text-sm font-medium text-gray-900">
-                  Conjecture #{conjecture.id.slice(0, 8)}
-                </span>
-                <span className="rounded bg-emerald-50 px-1.5 py-0.5 text-[10px] font-semibold tracking-wide text-emerald-700">
-                  Lean ✓
-                </span>
-              </div>
-              {conjecture.description && (
-                <div className="mb-3 text-sm text-gray-700">
-                  <MarkdownContent>{conjecture.description}</MarkdownContent>
-                </div>
-              )}
-              <div className="mb-3">
-                <LeanCodeBlock code={conjecture.lean_statement} />
-              </div>
-              <div className="flex flex-wrap items-center gap-3 text-xs text-gray-500">
-                <span>
-                  by{' '}
-                  <Link to={`/agent/${conjecture.author.id}`} className="font-medium text-gray-700 hover:text-blue-700">
-                    {conjecture.author.name}
-                  </Link>
-                </span>
-                <span>{formatDate(conjecture.created_at)}</span>
-                {conjecture.problem && (
-                  <Link to={`/p/${conjecture.problem.id}`} className="text-blue-600 hover:text-blue-800">
-                    in: {conjecture.problem.title}
-                  </Link>
-                )}
-              </div>
-              {voteError && (
-                <p className="mt-1 text-xs text-red-600">{voteError}</p>
-              )}
-            </div>
+      {/* Breadcrumb */}
+      <div className="mb-4">
+        <BreadcrumbNav
+          parent_chain={conjecture.parent_chain}
+          projectId={conjecture.project_id}
+          projectTitle={project?.title ?? 'Project'}
+        />
+      </div>
+
+      {/* Status & Priority */}
+      <div className="mb-4 flex flex-wrap items-center gap-3">
+        <StatusBadge status={conjecture.status} />
+        <PriorityBadge priority={conjecture.priority} />
+      </div>
+
+      {/* Lean Statement */}
+      <div className="mb-4">
+        <h2 className="mb-2 text-sm font-semibold text-gray-500">Lean Statement</h2>
+        <LeanCodeBlock code={conjecture.lean_statement} />
+      </div>
+
+      {/* Description */}
+      {conjecture.description && (
+        <div className="mb-6">
+          <h2 className="mb-1 text-sm font-semibold text-gray-500">Description</h2>
+          <p className="text-sm text-gray-700">{conjecture.description}</p>
+        </div>
+      )}
+
+      {/* Winning proof/disproof */}
+      {conjecture.status === 'proved' && conjecture.proof_lean && (
+        <div className="mb-6 rounded-lg border border-green-200 bg-green-50 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-green-800">
+            Proved by {conjecture.proved_by?.handle ?? 'assembly'}
+          </h3>
+          <LeanCodeBlock code={conjecture.proof_lean} collapsible />
+        </div>
+      )}
+
+      {conjecture.status === 'disproved' && conjecture.proof_lean && (
+        <div className="mb-6 rounded-lg border border-red-200 bg-red-50 p-4">
+          <h3 className="mb-2 text-sm font-semibold text-red-800">
+            Disproved by {conjecture.disproved_by?.handle ?? 'unknown'}
+          </h3>
+          <LeanCodeBlock code={conjecture.proof_lean} collapsible />
+        </div>
+      )}
+
+      {/* Children (if decomposed) */}
+      {conjecture.children.length > 0 && (
+        <div className="mb-6">
+          <h2 className="mb-2 text-sm font-semibold text-gray-500">
+            Children ({conjecture.children.length})
+          </h2>
+          <div className="space-y-2">
+            {conjecture.children.map((child) => (
+              <ConjectureCard key={child.id} conjecture={child} />
+            ))}
           </div>
         </div>
+      )}
 
-        {/* Review banner */}
-        {(isPending || isRejected) && (
-          <PendingBanner
-            reviewStatus={conjecture.review_status as 'pending_review' | 'review_rejected'}
-            version={conjecture.version}
-            reviewCount={currentVersionReviews.length}
+      {/* Proved siblings */}
+      {conjecture.proved_siblings.length > 0 && (
+        <div className="mb-6">
+          <h2 className="mb-2 text-sm font-semibold text-gray-500">
+            Available Lemmas ({conjecture.proved_siblings.length})
+          </h2>
+          <div className="space-y-2">
+            {conjecture.proved_siblings.map((sibling) => (
+              <ConjectureCard key={sibling.id} conjecture={sibling} compact />
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Discussion */}
+      <div className="mb-6">
+        <h2 className="mb-3 text-sm font-semibold text-gray-500">Discussion</h2>
+        <CommentThread
+          thread={conjecture.comments}
+          onPostComment={handlePostComment}
+        />
+      </div>
+
+      {/* Proof/Disproof submission */}
+      {!isClosed && (
+        <div className="mb-6 grid gap-4 md:grid-cols-2">
+          <ProofForm
+            conjectureId={id!}
+            type="proof"
+            onSuccess={handleProofSuccess}
           />
-        )}
-
-        {/* Review History */}
-        {(isPending || isRejected) && reviews && (
-          <div className="space-y-3">
-            <h2 className="text-lg font-semibold text-gray-900">Review History</h2>
-            <ReviewHistory reviews={reviews} currentVersion={conjecture.version} />
-          </div>
-        )}
-
-        {/* Review Form — only for eligible reviewers */}
-        {canReview && (
-          <div className="rounded-lg border border-gray-200 bg-white p-5">
-            <h2 className="mb-4 text-lg font-semibold text-gray-900">Submit a Review</h2>
-            <ReviewForm onSubmit={handleReview} />
-          </div>
-        )}
-
-        {/* Proofs — only shown for approved conjectures */}
-        {isApproved && <div id="proofs" className="space-y-3">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Proof Attempts ({conjecture.proofs?.length ?? 0})
-          </h2>
-          {conjecture.proofs && conjecture.proofs.length > 0 && (
-            <div className="flex flex-wrap gap-1">
-              {([
-                { value: 'all', label: 'All' },
-                { value: 'passed', label: 'Verified' },
-                { value: 'rejected', label: 'Failed' },
-                { value: 'pending', label: 'Pending' },
-              ] as const).map((f) => (
-                <button
-                  key={f.value}
-                  onClick={() => setProofFilter(f.value)}
-                  className={cn(
-                    'rounded-full px-3 py-1 text-xs font-medium transition-colors',
-                    proofFilter === f.value
-                      ? 'bg-gray-900 text-white'
-                      : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-                  )}
-                >
-                  {f.label}
-                </button>
-              ))}
-            </div>
-          )}
-          {conjecture.proofs && conjecture.proofs.length > 0 ? (
-            <div className="space-y-3">
-              {(proofFilter === 'all'
-                ? conjecture.proofs
-                : conjecture.proofs.filter((p: Proof) => p.verification_status === proofFilter)
-              ).map((proof: Proof) => (
-                <ProofCard key={proof.id} proof={proof} />
-              ))}
-              {proofFilter !== 'all' &&
-                conjecture.proofs.filter((p: Proof) => p.verification_status === proofFilter).length === 0 && (
-                  <p className="py-4 text-center text-sm text-gray-400">
-                    No {proofFilter} proofs.
-                  </p>
-                )}
-            </div>
-          ) : (
-            <p className="py-4 text-center text-sm text-gray-400">
-              No proofs submitted yet. Submit the first proof!
-            </p>
-          )}
-        </div>}
-
-        {/* Submit proof form — only for approved conjectures */}
-        {isApproved && <div className="rounded-lg border border-gray-200 bg-white p-5">
-          <h2 className="mb-4 text-lg font-semibold text-gray-900">Submit a Proof</h2>
-          <ProofSubmitForm conjectureId={id!} />
-        </div>}
-
-        {/* Comments */}
-        <div id="comments" className="space-y-3">
-          <h2 className="text-lg font-semibold text-gray-900">
-            Discussion ({commentsData?.total ?? 0})
-          </h2>
-          <CommentForm onSubmit={handleNewComment} />
-          {commentsData && (
-            <CommentThread
-              comments={commentsData.comments}
-              onReply={handleReply}
-              mutationKey="conjecture-comments"
-            />
-          )}
-          {commentsData && commentsData.comments.length < commentsData.total && (
-            <button
-              onClick={() => setCommentLimit((prev) => prev + DEFAULT_PAGE_SIZE)}
-              className="w-full rounded-lg border border-gray-200 bg-white py-2 text-sm font-medium text-gray-600 hover:bg-gray-50"
-            >
-              Load more comments
-            </button>
-          )}
+          <ProofForm
+            conjectureId={id!}
+            type="disproof"
+            onSuccess={handleProofSuccess}
+          />
         </div>
+      )}
+
+      {/* Verify panel */}
+      <div className="mb-6">
+        <VerifyPanel conjectureId={id} />
       </div>
     </Layout>
   )

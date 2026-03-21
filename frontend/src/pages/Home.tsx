@@ -1,96 +1,72 @@
-import { useState } from 'react'
+import { Link } from 'react-router-dom'
+import { useProjects } from '../hooks'
 import Layout from '../components/layout/Layout'
-import ConjectureList from '../components/conjecture/ConjectureList'
-import SortTabs from '../components/ui/SortTabs'
-import Pagination from '../components/ui/Pagination'
-import { useConjectures } from '../hooks/index'
-import { useFeedStore } from '../store/index'
-import { DEFAULT_PAGE_SIZE } from '../lib/constants'
-import { cn } from '../lib/utils'
+import ProgressBar from '../components/ui/ProgressBar'
+import SkeletonCard from '../components/ui/SkeletonCard'
+import ErrorBanner from '../components/ui/ErrorBanner'
+import { formatDate, truncate } from '../lib/utils'
+import { ROUTES } from '../lib/constants'
+import type { Project } from '../types'
 
-const statusFilters = [
-  { value: 'all' as const, label: 'All' },
-  { value: 'open' as const, label: 'Open' },
-  { value: 'proved' as const, label: 'Proved' },
-]
+function ProjectCard({ project }: { project: Project }) {
+  return (
+    <Link
+      to={ROUTES.PROJECT(project.id)}
+      className="block rounded-lg border border-gray-200 bg-white p-5 transition-shadow hover:shadow-md"
+    >
+      <h2 className="text-lg font-semibold text-gray-900">{project.title}</h2>
+      {project.description && (
+        <p className="mt-1 text-sm text-gray-600">{truncate(project.description, 120)}</p>
+      )}
+      <div className="mt-3">
+        <ProgressBar
+          percent={project.progress}
+          label={`${project.proved_leaves}/${project.total_leaves} leaves proved`}
+        />
+      </div>
+      <div className="mt-2 flex items-center gap-3 text-xs text-gray-400">
+        <span>{project.total_leaves} leaves</span>
+        <span>{formatDate(project.last_activity_at)}</span>
+      </div>
+    </Link>
+  )
+}
 
 export default function Home() {
-  const { sort, statusFilter, page, setSort, setStatusFilter, setPage } = useFeedStore()
-  const [searchQuery, setSearchQuery] = useState('')
-
-  const params = {
-    sort,
-    status: statusFilter === 'all' ? undefined : statusFilter,
-    q: searchQuery.trim() || undefined,
-    limit: DEFAULT_PAGE_SIZE,
-    offset: (page - 1) * DEFAULT_PAGE_SIZE,
-  }
-
-  const { data, error, isLoading, mutate } = useConjectures(params)
-  const totalPages = data ? Math.ceil(data.total / DEFAULT_PAGE_SIZE) : 0
+  const { data: projects, error, isLoading, mutate } = useProjects()
 
   return (
-    <Layout sidebar>
-      <div className="space-y-4">
-        <div className="flex flex-wrap items-center justify-between gap-3">
-          <h1 className="text-xl font-bold text-gray-900">Conjectures</h1>
-          <SortTabs value={sort} onChange={setSort} />
+    <Layout>
+      <div className="mb-6">
+        <h1 className="text-2xl font-bold text-gray-900">Projects</h1>
+        <p className="mt-1 text-sm text-gray-600">
+          Collaborative theorem proving efforts. Pick a project and contribute proofs.
+        </p>
+      </div>
+
+      {isLoading && (
+        <div className="space-y-4">
+          <SkeletonCard />
+          <SkeletonCard />
+          <SkeletonCard />
         </div>
-        <div className="relative">
-          <svg
-            className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-gray-400"
-            xmlns="http://www.w3.org/2000/svg"
-            fill="none"
-            viewBox="0 0 24 24"
-            strokeWidth={2}
-            stroke="currentColor"
-          >
-            <path strokeLinecap="round" strokeLinejoin="round" d="M21 21l-5.197-5.197m0 0A7.5 7.5 0 105.196 5.196a7.5 7.5 0 0010.607 10.607z" />
-          </svg>
-          <input
-            type="text"
-            placeholder="Search conjectures..."
-            value={searchQuery}
-            onChange={(e) => {
-              setSearchQuery(e.target.value)
-              setPage(1)
-            }}
-            className="w-full rounded-lg border border-gray-200 bg-white py-2 pl-9 pr-3 text-sm text-gray-900 placeholder-gray-400 outline-none focus:border-gray-400 focus:ring-1 focus:ring-gray-400"
-          />
-        </div>
-        <div className="flex flex-wrap gap-1">
-          {statusFilters.map((f) => (
-            <button
-              key={f.value}
-              onClick={() => setStatusFilter(f.value)}
-              className={cn(
-                'rounded-full px-3 py-1 text-xs font-medium transition-colors',
-                statusFilter === f.value
-                  ? 'bg-gray-900 text-white'
-                  : 'bg-gray-100 text-gray-600 hover:bg-gray-200',
-              )}
-            >
-              {f.label}
-            </button>
+      )}
+
+      {error && (
+        <ErrorBanner message="Failed to load projects." onRetry={() => mutate()} />
+      )}
+
+      {projects && projects.length === 0 && (
+        <p className="py-12 text-center text-sm text-gray-400">No active projects yet.</p>
+      )}
+
+      {projects && projects.length > 0 && (
+        <div className="space-y-4">
+          {projects.map((project) => (
+            <ProjectCard key={project.id} project={project} />
           ))}
         </div>
-        <ConjectureList
-          conjectures={data?.conjectures}
-          isLoading={isLoading}
-          error={error}
-          onRetry={() => mutate()}
-          emptyMessage={
-            searchQuery.trim()
-              ? 'No conjectures match your search.'
-              : statusFilter !== 'all'
-                ? 'No conjectures match your filters.'
-                : 'No conjectures posted yet. Be the first!'
-          }
-          emptyActionLabel={searchQuery.trim() || statusFilter !== 'all' ? undefined : 'Post Conjecture'}
-          emptyActionTo={searchQuery.trim() || statusFilter !== 'all' ? undefined : '/submit'}
-        />
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-      </div>
+      )}
     </Layout>
   )
 }

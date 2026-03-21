@@ -1,11 +1,11 @@
 import React, { Suspense, Component, type ReactNode } from 'react'
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
+import Layout from './components/layout/Layout'
 
 const Home = React.lazy(() => import('./pages/Home'))
-const ProblemPage = React.lazy(() => import('./pages/ProblemPage'))
+const ProjectPage = React.lazy(() => import('./pages/ProjectPage'))
 const ConjecturePage = React.lazy(() => import('./pages/ConjecturePage'))
-const Submit = React.lazy(() => import('./pages/Submit'))
-const ReviewPage = React.lazy(() => import('./pages/ReviewPage'))
+const CreateProject = React.lazy(() => import('./pages/CreateProject'))
 const Leaderboard = React.lazy(() => import('./pages/Leaderboard'))
 const AgentProfile = React.lazy(() => import('./pages/AgentProfile'))
 const About = React.lazy(() => import('./pages/About'))
@@ -54,23 +54,45 @@ class ErrorBoundary extends Component<ErrorBoundaryProps, ErrorBoundaryState> {
   }
 }
 
+function NotFound() {
+  return (
+    <Layout>
+      <div className="py-20 text-center">
+        <h1 className="text-2xl font-bold text-gray-900">Page not found</h1>
+        <p className="mt-2 text-gray-600">The page you&apos;re looking for doesn&apos;t exist.</p>
+        <Link
+          to="/"
+          className="mt-4 inline-block text-blue-600 hover:underline"
+        >
+          Go home
+        </Link>
+      </div>
+    </Layout>
+  )
+}
+
 export default function App() {
   return (
     <ErrorBoundary>
       <BrowserRouter>
-        <Suspense fallback={<div className="flex h-screen items-center justify-center">Loading...</div>}>
+        <Suspense
+          fallback={
+            <div className="flex h-screen items-center justify-center">
+              <div className="h-6 w-6 animate-spin rounded-full border-2 border-gray-300 border-t-gray-900" />
+            </div>
+          }
+        >
           <Routes>
             <Route path="/" element={<Home />} />
-            <Route path="/p/:id" element={<ProblemPage />} />
+            <Route path="/p/:id" element={<ProjectPage />} />
             <Route path="/c/:id" element={<ConjecturePage />} />
-            <Route path="/submit" element={<Submit />} />
-            <Route path="/review" element={<ReviewPage />} />
+            <Route path="/submit" element={<CreateProject />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/agent/:id" element={<AgentProfile />} />
             <Route path="/about" element={<About />} />
             <Route path="/login" element={<Login />} />
             <Route path="/register" element={<Register />} />
-            <Route path="*" element={<div className="p-8 text-center"><h1 className="text-2xl font-bold">Page not found</h1><p className="mt-2 text-gray-600">The page you&apos;re looking for doesn&apos;t exist.</p><a href="/" className="mt-4 inline-block text-blue-600 hover:underline">Go home</a></div>} />
+            <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>
       </BrowserRouter>

@@ -1,12 +1,13 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
+import type { ApiTreeNode, TreeNode } from '../types'
 
 /** Merge Tailwind classes with clsx */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs))
 }
 
-/** Format an ISO date string for display */
+/** Format an ISO date string as a relative time */
 export function formatDate(dateString: string): string {
   const date = new Date(dateString)
   const now = new Date()
@@ -32,4 +33,37 @@ export function formatDate(dateString: string): string {
 export function truncate(str: string, maxLength: number): string {
   if (str.length <= maxLength) return str
   return str.slice(0, maxLength - 1) + '\u2026'
+}
+
+/**
+ * Flatten nested API tree response into a flat TreeNode array for react-flow.
+ * Recursively walks the nested structure and adds parent_id references.
+ */
+export function flattenTree(
+  root: ApiTreeNode,
+  projectId: string,
+  parentId: string | null = null,
+): TreeNode[] {
+  const provedChildCount = root.children.filter((c) => c.status === 'proved').length
+
+  const node: TreeNode = {
+    id: root.id,
+    project_id: projectId,
+    parent_id: parentId,
+    lean_statement: root.lean_statement,
+    description: root.description,
+    status: root.status,
+    priority: root.priority,
+    comment_count: root.comment_count,
+    child_count: root.children.length,
+    proved_child_count: provedChildCount,
+  }
+
+  const result: TreeNode[] = [node]
+
+  for (const child of root.children) {
+    result.push(...flattenTree(child, projectId, root.id))
+  }
+
+  return result
 }

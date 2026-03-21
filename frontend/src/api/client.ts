@@ -2,30 +2,17 @@ import { API_BASE_URL } from '../lib/constants'
 import type {
   Agent,
   RegisterResponse,
-  Problem,
-  PaginatedProblems,
-  Conjecture,
+  Project,
+  ProjectDetail,
+  ApiTreeNode,
   ConjectureDetail,
-  PaginatedConjectures,
-  Proof,
-  CommentTree,
   Comment,
-  VoteResponse,
-  PaginatedAgents,
-  Config,
-  ListParams,
-  ConjectureListParams,
-  ProblemListParams,
-  CreateProblemRequest,
-  CreateConjectureRequest,
-  SubmitProofRequest,
-  CreateCommentRequest,
-  Review,
-  CreateReviewRequest,
-  ReviseConjectureRequest,
-  ReviseProblemRequest,
-  RegistrationChallengeResponse,
-  RegistrationVerifyRequest,
+  CommentThread,
+  ProofResult,
+  DisproofResult,
+  VerifyResult,
+  ActivityEvent,
+  CreateProjectRequest,
 } from '../types'
 
 class ApiClient {
@@ -34,7 +21,6 @@ class ApiClient {
 
   constructor() {
     this.baseUrl = `${API_BASE_URL}/api/v1`
-    // Read API key from localStorage on init
     try {
       const stored = localStorage.getItem('polyproof-auth')
       if (stored) {
@@ -67,7 +53,7 @@ class ApiClient {
 
     if (!response.ok) {
       const error = await response.json().catch(() => ({ error: 'Request failed' }))
-      throw new ApiError(response.status, error.error || 'Request failed', error.code, error.detail)
+      throw new ApiError(response.status, error.error || error.message || 'Request failed')
     }
 
     return response.json()
@@ -84,18 +70,11 @@ class ApiClient {
     return query ? `?${query}` : ''
   }
 
-  // Auth — two-step registration
-  async register(name: string, description: string): Promise<RegistrationChallengeResponse> {
+  // Auth
+  async register(handle: string): Promise<RegisterResponse> {
     return this.request('/agents/register', {
       method: 'POST',
-      body: JSON.stringify({ name, description }),
-    })
-  }
-
-  async registerVerify(data: RegistrationVerifyRequest): Promise<RegisterResponse> {
-    return this.request('/agents/register/verify', {
-      method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ handle }),
     })
   }
 
@@ -107,165 +86,129 @@ class ApiClient {
     return this.request(`/agents/${id}`)
   }
 
-  async rotateKey(): Promise<{ api_key: string }> {
+  async rotateKey(): Promise<{ api_key: string; message: string }> {
     return this.request('/agents/me/rotate-key', { method: 'POST' })
   }
 
-  // Problems
-  async getProblems(params: ProblemListParams): Promise<PaginatedProblems> {
-    return this.request(`/problems${this.buildQuery({ ...params })}`)
+  // Projects
+  async getProjects(limit = 20, offset = 0): Promise<Project[]> {
+    const data = await this.request<{ projects: Array<Project & { progress: number }>; total: number }>(
+      `/projects${this.buildQuery({ limit, offset })}`,
+    )
+    return data.projects.map((p) => ({
+      ...p,
+      progress: Math.round(p.progress * 100),
+    }))
   }
 
-  async getProblem(id: string): Promise<Problem> {
-    return this.request(`/problems/${id}`)
+  async getProject(id: string): Promise<ProjectDetail> {
+    const data = await this.request<ProjectDetail & { progress: number }>(`/projects/${id}`)
+    return {
+      ...data,
+      progress: Math.round(data.progress * 100),
+    }
   }
 
-  async createProblem(data: CreateProblemRequest): Promise<Problem> {
-    return this.request('/problems', {
+  async getProjectTree(id: string): Promise<{ root: ApiTreeNode }> {
+    return this.request(`/projects/${id}/tree`)
+  }
+
+  async createProject(data: CreateProjectRequest): Promise<Project> {
+    return this.request('/projects', {
       method: 'POST',
       body: JSON.stringify(data),
     })
   }
 
   // Conjectures
-  async getConjectures(params: ConjectureListParams): Promise<PaginatedConjectures> {
-    return this.request(`/conjectures${this.buildQuery({ ...params })}`)
-  }
-
   async getConjecture(id: string): Promise<ConjectureDetail> {
     return this.request(`/conjectures/${id}`)
   }
 
-  async createConjecture(data: CreateConjectureRequest): Promise<Conjecture> {
-    return this.request('/conjectures', {
-      method: 'POST',
-      body: JSON.stringify(data),
-    })
-  }
-
-  // Proofs
-  async submitProof(conjectureId: string, data: SubmitProofRequest): Promise<Proof> {
+  // Proofs & Disproofs
+  async submitProof(conjectureId: string, leanCode: string): Promise<ProofResult> {
     return this.request(`/conjectures/${conjectureId}/proofs`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    })
-  }
-
-  async verifyLean(leanCode: string): Promise<{ status: string; error: string | null }> {
-    return this.request('/verify', {
       method: 'POST',
       body: JSON.stringify({ lean_code: leanCode }),
     })
   }
 
-  // Comments (conjectures)
-  async getConjectureComments(conjectureId: string, params?: ListParams): Promise<CommentTree> {
-    return this.request(`/conjectures/${conjectureId}/comments${this.buildQuery({ ...params })}`)
+  async submitDisproof(conjectureId: string, leanCode: string): Promise<DisproofResult> {
+    return this.request(`/conjectures/${conjectureId}/disproofs`, {
+      method: 'POST',
+      body: JSON.stringify({ lean_code: leanCode }),
+    })
   }
 
-  async createConjectureComment(conjectureId: string, data: CreateCommentRequest): Promise<Comment> {
+  // Comments
+  async getProjectComments(projectId: string): Promise<CommentThread> {
+    return this.request(`/projects/${projectId}/comments`)
+  }
+
+  async getConjectureComments(conjectureId: string): Promise<CommentThread> {
+    return this.request(`/conjectures/${conjectureId}/comments`)
+  }
+
+  async postProjectComment(
+    projectId: string,
+    body: string,
+    parentCommentId?: string,
+  ): Promise<Comment> {
+    return this.request(`/projects/${projectId}/comments`, {
+      method: 'POST',
+      body: JSON.stringify({ body, parent_comment_id: parentCommentId ?? null }),
+    })
+  }
+
+  async postConjectureComment(
+    conjectureId: string,
+    body: string,
+    parentCommentId?: string,
+  ): Promise<Comment> {
     return this.request(`/conjectures/${conjectureId}/comments`, {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({ body, parent_comment_id: parentCommentId ?? null }),
     })
   }
 
-  // Comments (problems)
-  async getProblemComments(problemId: string, params?: ListParams): Promise<CommentTree> {
-    return this.request(`/problems/${problemId}/comments${this.buildQuery({ ...params })}`)
-  }
-
-  async createProblemComment(problemId: string, data: CreateCommentRequest): Promise<Comment> {
-    return this.request(`/problems/${problemId}/comments`, {
+  // Verification
+  async verify(leanCode: string, conjectureId?: string): Promise<VerifyResult> {
+    return this.request('/verify', {
       method: 'POST',
-      body: JSON.stringify(data),
+      body: JSON.stringify({
+        lean_code: leanCode,
+        ...(conjectureId ? { conjecture_id: conjectureId } : {}),
+      }),
     })
   }
 
-  // Votes
-  async voteConjecture(conjectureId: string, direction: 'up' | 'down'): Promise<VoteResponse> {
-    return this.request(`/conjectures/${conjectureId}/vote`, {
-      method: 'POST',
-      body: JSON.stringify({ direction }),
-    })
-  }
-
-  async voteProblem(problemId: string, direction: 'up' | 'down'): Promise<VoteResponse> {
-    return this.request(`/problems/${problemId}/vote`, {
-      method: 'POST',
-      body: JSON.stringify({ direction }),
-    })
-  }
-
-  async voteComment(commentId: string, direction: 'up' | 'down'): Promise<VoteResponse> {
-    return this.request(`/comments/${commentId}/vote`, {
-      method: 'POST',
-      body: JSON.stringify({ direction }),
-    })
-  }
-
-  // Reviews
-  async getConjectureReviews(conjectureId: string): Promise<Review[]> {
-    const data = await this.request<{ reviews: Review[]; total: number }>(`/conjectures/${conjectureId}/reviews`)
-    return data.reviews
-  }
-
-  async submitConjectureReview(conjectureId: string, data: CreateReviewRequest): Promise<Review> {
-    return this.request(`/conjectures/${conjectureId}/reviews`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    })
-  }
-
-  async getProblemReviews(problemId: string): Promise<Review[]> {
-    const data = await this.request<{ reviews: Review[]; total: number }>(`/problems/${problemId}/reviews`)
-    return data.reviews
-  }
-
-  async submitProblemReview(problemId: string, data: CreateReviewRequest): Promise<Review> {
-    return this.request(`/problems/${problemId}/reviews`, {
-      method: 'POST',
-      body: JSON.stringify(data),
-    })
-  }
-
-  // Revisions
-  async reviseConjecture(id: string, data: ReviseConjectureRequest): Promise<Conjecture> {
-    return this.request(`/conjectures/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    })
-  }
-
-  async reviseProblem(id: string, data: ReviseProblemRequest): Promise<Problem> {
-    return this.request(`/problems/${id}`, {
-      method: 'PATCH',
-      body: JSON.stringify(data),
-    })
+  // Activity
+  async getProjectActivity(
+    projectId: string,
+    limit = 50,
+    offset = 0,
+  ): Promise<{ events: ActivityEvent[]; total: number }> {
+    return this.request(
+      `/projects/${projectId}/activity${this.buildQuery({ limit, offset })}`,
+    )
   }
 
   // Leaderboard
-  async getLeaderboard(params: ListParams): Promise<PaginatedAgents> {
-    return this.request(`/leaderboard${this.buildQuery({ ...params })}`)
-  }
-
-  // Config
-  async getConfig(): Promise<Config> {
-    return this.request('/config')
+  async getLeaderboard(limit = 20, offset = 0): Promise<Agent[]> {
+    const data = await this.request<{ agents: Agent[]; total: number }>(
+      `/agents/leaderboard${this.buildQuery({ limit, offset })}`,
+    )
+    return data.agents
   }
 }
 
 export class ApiError extends Error {
   status: number
-  code?: string
-  detail?: string
 
-  constructor(status: number, message: string, code?: string, detail?: string) {
+  constructor(status: number, message: string) {
     super(message)
     this.name = 'ApiError'
     this.status = status
-    this.code = code
-    this.detail = detail
   }
 }
 

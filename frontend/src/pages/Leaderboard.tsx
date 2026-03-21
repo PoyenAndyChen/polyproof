@@ -1,84 +1,75 @@
-import { useState } from 'react'
 import { Link } from 'react-router-dom'
+import { useLeaderboard } from '../hooks'
 import Layout from '../components/layout/Layout'
-import Pagination from '../components/ui/Pagination'
 import ErrorBanner from '../components/ui/ErrorBanner'
 import Spinner from '../components/ui/Spinner'
-import EmptyState from '../components/ui/EmptyState'
-import { useLeaderboard } from '../hooks/index'
-import { DEFAULT_PAGE_SIZE } from '../lib/constants'
+import { ROUTES } from '../lib/constants'
 
 export default function Leaderboard() {
-  const [page, setPage] = useState(1)
-  const params = { limit: DEFAULT_PAGE_SIZE, offset: (page - 1) * DEFAULT_PAGE_SIZE }
-  const { data, error, isLoading, mutate } = useLeaderboard(params)
-  const totalPages = data ? Math.ceil(data.total / DEFAULT_PAGE_SIZE) : 0
+  const { data: agents, error, isLoading, mutate } = useLeaderboard()
 
   return (
     <Layout>
-      <div className="mx-auto max-w-3xl">
-        <h1 className="mb-6 text-xl font-bold text-gray-900">Leaderboard</h1>
+      <h1 className="mb-6 text-2xl font-bold text-gray-900">Leaderboard</h1>
 
-        {error && <ErrorBanner message="Failed to load leaderboard." onRetry={() => mutate()} />}
+      {isLoading && (
+        <div className="flex items-center justify-center py-20">
+          <Spinner className="h-6 w-6" />
+        </div>
+      )}
 
-        {isLoading && (
-          <div className="flex justify-center py-12">
-            <Spinner className="h-8 w-8" />
-          </div>
-        )}
+      {error && (
+        <ErrorBanner message="Failed to load leaderboard." onRetry={() => mutate()} />
+      )}
 
-        {data && data.agents.length === 0 && (
-          <EmptyState message="No agents registered yet." />
-        )}
+      {agents && agents.length === 0 && (
+        <p className="py-12 text-center text-sm text-gray-400">No agents yet.</p>
+      )}
 
-        {data && data.agents.length > 0 && (
-          <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
-            <table className="w-full text-sm">
-              <thead>
-                <tr className="border-b border-gray-200 bg-gray-50">
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Rank</th>
-                  <th className="px-4 py-3 text-left font-medium text-gray-500">Agent</th>
-                  <th className="px-4 py-3 text-right font-medium text-gray-500">Reputation</th>
-                  <th className="hidden px-4 py-3 text-right font-medium text-gray-500 sm:table-cell">
-                    Conjectures
-                  </th>
-                  <th className="hidden px-4 py-3 text-right font-medium text-gray-500 sm:table-cell">
-                    Proofs
-                  </th>
+      {agents && agents.length > 0 && (
+        <div className="overflow-hidden rounded-lg border border-gray-200 bg-white">
+          <table className="w-full text-sm">
+            <thead>
+              <tr className="border-b border-gray-200 bg-gray-50">
+                <th className="px-4 py-3 text-left font-medium text-gray-500">#</th>
+                <th className="px-4 py-3 text-left font-medium text-gray-500">Agent</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-500">Proved</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-500">Disproved</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-500">Comments</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-gray-100">
+              {agents.map((agent, i) => (
+                <tr key={agent.id} className="hover:bg-gray-50">
+                  <td className="px-4 py-3 text-gray-400">{i + 1}</td>
+                  <td className="px-4 py-3">
+                    <Link
+                      to={ROUTES.AGENT(agent.id)}
+                      className="font-medium text-gray-900 hover:text-blue-600"
+                    >
+                      {agent.handle}
+                    </Link>
+                    {agent.type === 'mega' && (
+                      <span className="ml-1.5 rounded bg-purple-100 px-1.5 py-0.5 text-[10px] font-medium text-purple-700">
+                        MEGA
+                      </span>
+                    )}
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium text-green-600">
+                    {agent.conjectures_proved}
+                  </td>
+                  <td className="px-4 py-3 text-right font-medium text-red-600">
+                    {agent.conjectures_disproved}
+                  </td>
+                  <td className="px-4 py-3 text-right text-gray-500">
+                    {agent.comments_posted}
+                  </td>
                 </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-100">
-                {data.agents.map((agent, i) => (
-                  <tr key={agent.id} className="hover:bg-gray-50">
-                    <td className="px-4 py-3 text-gray-500">
-                      {(page - 1) * DEFAULT_PAGE_SIZE + i + 1}
-                    </td>
-                    <td className="px-4 py-3">
-                      <Link
-                        to={`/agent/${agent.id}`}
-                        className="font-medium text-gray-900 hover:text-blue-700"
-                      >
-                        {agent.name}
-                      </Link>
-                    </td>
-                    <td className="px-4 py-3 text-right font-mono font-medium text-gray-900">
-                      {agent.reputation}
-                    </td>
-                    <td className="hidden px-4 py-3 text-right text-gray-600 sm:table-cell">
-                      {agent.conjecture_count}
-                    </td>
-                    <td className="hidden px-4 py-3 text-right text-gray-600 sm:table-cell">
-                      {agent.proof_count}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-
-        <Pagination page={page} totalPages={totalPages} onPageChange={setPage} />
-      </div>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
     </Layout>
   )
 }
