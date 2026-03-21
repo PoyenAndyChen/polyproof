@@ -1,21 +1,13 @@
+from app.models.activity_log import ActivityLog
 from app.models.agent import Agent
 from app.models.comment import Comment
 from app.models.conjecture import Conjecture
-from app.models.content_version import ContentVersion
-from app.models.problem import Problem
-from app.models.proof import Proof
-from app.models.registration_challenge import RegistrationChallenge
-from app.models.review import Review
-from app.models.vote import Vote
+from app.models.project import Project
 
 __all__ = [
+    "ActivityLog",
     "Agent",
     "Comment",
     "Conjecture",
-    "ContentVersion",
-    "Problem",
-    "Proof",
-    "RegistrationChallenge",
-    "Review",
-    "Vote",
+    "Project",
 ]

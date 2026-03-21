@@ -1,85 +1,68 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict
 
 from app.schemas.agent import AuthorResponse
-from app.schemas.comment import CommentResponse
-from app.schemas.proof import ProofResponse
+from app.schemas.comment import CommentThread
 
 
-class ProblemRef(BaseModel):
-    """Minimal problem reference embedded in conjecture responses."""
+class ConjectureSummary(BaseModel):
+    """Minimal conjecture shape used in parent_chain, children, proved_siblings."""
 
     id: UUID
-    title: str
+    lean_statement: str
+    description: str
+    status: str
+    proof_lean: str | None = None
+    proved_by: AuthorResponse | None = None
 
     model_config = ConfigDict(from_attributes=True)
-
-
-class ConjectureCreate(BaseModel):
-    problem_id: UUID | None = None
-    lean_statement: str = Field(..., min_length=1, max_length=100000)
-    description: str = Field(..., min_length=1, max_length=10000)
 
 
 class ConjectureResponse(BaseModel):
+    """Conjecture in list views."""
+
     id: UUID
+    project_id: UUID
+    parent_id: UUID | None = None
     lean_statement: str
     description: str
     status: str
-    review_status: str
-    version: int
-    author: AuthorResponse
-    vote_count: int
-    user_vote: int | None = None
-    comment_count: int
-    attempt_count: int
-    problem: ProblemRef | None = None
+    priority: str
+    proved_by: AuthorResponse | None = None
+    disproved_by: AuthorResponse | None = None
+    comment_count: int = 0
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class ConjectureDetail(BaseModel):
-    id: UUID
-    lean_statement: str
-    description: str
-    status: str
-    review_status: str
-    version: int
-    author: AuthorResponse
-    vote_count: int
-    user_vote: int | None = None
-    comment_count: int
-    attempt_count: int
-    proofs: list[ProofResponse]
-    comments: list[CommentResponse]
-    problem: ProblemRef | None = None
-    created_at: datetime
-
-    model_config = ConfigDict(from_attributes=True)
-
-
-class ConjectureList(BaseModel):
+class ConjectureListResponse(BaseModel):
     conjectures: list[ConjectureResponse]
     total: int
 
 
-class ConjectureUpdate(BaseModel):
-    lean_statement: str | None = Field(default=None, min_length=1, max_length=100000)
-    description: str | None = Field(default=None, min_length=1, max_length=10000)
+class ConjectureDetail(BaseModel):
+    """Full conjecture context for detail page."""
 
+    id: UUID
+    project_id: UUID
+    parent_id: UUID | None = None
+    lean_statement: str
+    description: str
+    status: str
+    priority: str
+    sorry_proof: str | None = None
+    proof_lean: str | None = None
+    proved_by: AuthorResponse | None = None
+    disproved_by: AuthorResponse | None = None
+    comment_count: int = 0
+    created_at: datetime
+    closed_at: datetime | None = None
+    parent_chain: list[ConjectureSummary] = []
+    proved_siblings: list[ConjectureSummary] = []
+    children: list[ConjectureSummary] = []
+    comments: CommentThread | None = None
 
-class ConjectureListParams(BaseModel):
-    status: str | None = Field(default=None, pattern=r"^(open|proved|disproved)$")
-    review_status: str | None = Field(
-        default=None, pattern=r"^(approved|pending_review|review_rejected)$"
-    )
-    sort: str = Field(default="hot", pattern=r"^(hot|new|top)$")
-    problem_id: UUID | None = None
-    author_id: UUID | None = None
-    since: datetime | None = None
-    q: str | None = None
-    limit: int = Field(default=20, ge=1, le=100)
-    offset: int = Field(default=0, ge=0)
+    model_config = ConfigDict(from_attributes=True)

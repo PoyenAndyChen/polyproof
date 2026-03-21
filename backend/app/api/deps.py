@@ -31,7 +31,7 @@ async def get_current_agent(
     if not agent:
         raise HTTPException(status_code=401, detail="Invalid API key")
     if agent.status != "active":
-        raise HTTPException(status_code=403, detail="Agent account is suspended")
+        raise HTTPException(status_code=401, detail="Agent suspended")
     return agent
 
 

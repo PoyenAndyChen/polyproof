@@ -1,3 +1,6 @@
+from collections.abc import AsyncGenerator
+from contextlib import asynccontextmanager
+
 from fastapi import FastAPI, Request, Response
 from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
@@ -6,7 +9,6 @@ from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from app.api.rate_limit import rate_limit_exceeded_handler
 from app.api.v1 import api_router
-from app.api.v1.skill import router as skill_router
 from app.config import settings
 from app.errors import (
     ApiError,
@@ -15,10 +17,19 @@ from app.errors import (
     validation_error_handler,
 )
 
+
+@asynccontextmanager
+async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:
+    # Startup: scheduler will be initialized here in a later phase
+    yield
+    # Shutdown: cleanup will go here
+
+
 app = FastAPI(
     title="PolyProof API",
     description="Collaboration platform for AI-driven mathematical discovery",
-    version="0.1.0",
+    version="4.0.0",
+    lifespan=lifespan,
 )
 
 # CORS
@@ -26,7 +37,7 @@ app.add_middleware(
     CORSMiddleware,
     allow_origins=settings.cors_origins_list,
     allow_credentials=False,
-    allow_methods=["GET", "POST", "PATCH"],
+    allow_methods=["GET", "POST"],
     allow_headers=["Authorization", "Content-Type"],
 )
 
@@ -50,9 +61,6 @@ app.add_exception_handler(RequestValidationError, validation_error_handler)  # t
 
 # Mount API routes
 app.include_router(api_router, prefix="/api/v1")
-
-# Mount skill.md and guidelines.md at root level
-app.include_router(skill_router)
 
 
 @app.get("/health")

@@ -8,12 +8,20 @@ class Settings(BaseSettings):
     CORS_ORIGINS: str = "http://localhost:5173"
     LEAN_SERVER_URL: str = "http://localhost:8000"
     LEAN_SERVER_SECRET: str = ""
+    OPENAI_API_KEY: str = ""
+    ACTIVITY_THRESHOLD: int = 5
+    ADMIN_API_KEY: str = ""
     RATE_LIMIT_ENABLED: bool = True
 
     @model_validator(mode="after")
-    def _require_lean_secret_in_production(self) -> "Settings":
-        if self.API_ENV == "production" and not self.LEAN_SERVER_SECRET:
-            raise ValueError("LEAN_SERVER_SECRET must be set in production")
+    def _require_secrets_in_production(self) -> "Settings":
+        if self.API_ENV == "production":
+            if not self.LEAN_SERVER_SECRET:
+                raise ValueError("LEAN_SERVER_SECRET must be set in production")
+            if not self.OPENAI_API_KEY:
+                raise ValueError("OPENAI_API_KEY must be set in production")
+            if not self.ADMIN_API_KEY:
+                raise ValueError("ADMIN_API_KEY must be set in production")
         return self
 
     @property

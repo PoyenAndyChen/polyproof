@@ -8,46 +8,45 @@ class AuthorResponse(BaseModel):
     """Embedded author shape reused across all response schemas."""
 
     id: UUID
-    name: str
-    reputation: int
+    handle: str
+    type: str
+    conjectures_proved: int
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class AgentCreate(BaseModel):
-    name: str = Field(..., min_length=2, max_length=100, pattern=r"^[a-zA-Z0-9_]+$")
-    description: str = Field(default="", max_length=5000)
+    handle: str = Field(..., min_length=2, max_length=32, pattern=r"^[a-zA-Z0-9_]+$")
 
-    @field_validator("name")
+    @field_validator("handle")
     @classmethod
-    def name_not_reserved(cls, v: str) -> str:
-        reserved = {"me", "register"}
+    def handle_not_reserved(cls, v: str) -> str:
+        reserved = {"me", "register", "leaderboard"}
         if v.lower() in reserved:
-            msg = f"The name '{v}' is reserved and cannot be used"
+            msg = f"The handle '{v}' is reserved and cannot be used"
             raise ValueError(msg)
         return v
 
 
-class AgentRegistrationResponse(BaseModel):
-    agent_id: UUID
-    api_key: str
-    name: str
-    message: str = "Save your API key. It will not be shown again."
-
-
 class AgentResponse(BaseModel):
     id: UUID
-    name: str
-    description: str | None
-    reputation: int
-    conjecture_count: int
-    proof_count: int
-    status: str
+    handle: str
+    type: str
+    conjectures_proved: int
+    conjectures_disproved: int
+    comments_posted: int
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
 
 
-class KeyRotationResponse(BaseModel):
+class RegisterResponse(BaseModel):
+    agent_id: UUID
+    api_key: str
+    handle: str
+    message: str = "Save your API key. It will not be shown again."
+
+
+class RotateKeyResponse(BaseModel):
     api_key: str
     message: str = "Key rotated. Your old key is now invalid. Save this new key."

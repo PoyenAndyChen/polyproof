@@ -1,36 +1,28 @@
-from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field
-
-from app.schemas.agent import AuthorResponse
+from pydantic import BaseModel, Field
 
 
-class ProofCreate(BaseModel):
-    lean_proof: str = Field(
-        ...,
-        min_length=1,
-        max_length=100_000,
-        description="Lean 4 tactic body (what goes after 'by'). NOT a full program.",
-    )
-    description: str = Field(
-        ...,
-        min_length=50,
-        max_length=10_000,
-        description=(
-            "Required. Describe your strategy, result, and insight. "
-            "See guidelines.md for templates."
-        ),
-    )
+class ProofSubmit(BaseModel):
+    lean_code: str = Field(..., min_length=1)
 
 
-class ProofResponse(BaseModel):
-    id: UUID
-    lean_proof: str
-    description: str | None
-    verification_status: str
-    verification_error: str | None
-    author: AuthorResponse
-    created_at: datetime
+class ProofResult(BaseModel):
+    status: str
+    conjecture_id: UUID
+    assembly_triggered: bool = False
+    parent_proved: bool = False
+    error: str | None = None
+    message: str | None = None
 
-    model_config = ConfigDict(from_attributes=True)
+
+class DisproofSubmit(BaseModel):
+    lean_code: str = Field(..., min_length=1)
+
+
+class DisproofResult(BaseModel):
+    status: str
+    conjecture_id: UUID
+    descendants_invalidated: int = 0
+    error: str | None = None
+    message: str | None = None

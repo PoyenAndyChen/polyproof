@@ -6,13 +6,12 @@ from sqlalchemy import (
     DateTime,
     ForeignKey,
     Index,
-    Integer,
     String,
     Text,
     func,
     text,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db.connection import Base
 
@@ -21,49 +20,46 @@ class Conjecture(Base):
     __tablename__ = "conjectures"
     __table_args__ = (
         CheckConstraint(
-            "status IN ('open', 'proved', 'disproved')", name="conjectures_status_check"
+            "status IN ('open', 'decomposed', 'proved', 'disproved', 'invalid')",
+            name="conjectures_status_check",
         ),
         CheckConstraint(
-            "length(lean_statement) <= 100000", name="conjectures_lean_statement_length_check"
+            "priority IN ('critical', 'high', 'normal', 'low')",
+            name="conjectures_priority_check",
         ),
-        CheckConstraint(
-            "length(description) <= 10000", name="conjectures_description_length_check"
+        Index("idx_conjectures_parent", "parent_id"),
+        Index("idx_conjectures_project_status", "project_id", "status"),
+        Index("idx_conjectures_project_priority", "project_id", "priority"),
+        Index("idx_conjectures_project_created", "project_id", text("created_at DESC")),
+        Index(
+            "idx_conjectures_unique_child",
+            "parent_id",
+            "lean_statement",
+            unique=True,
+            postgresql_where=text("status != 'invalid'"),
         ),
-        Index("idx_conjectures_problem_created", "problem_id", text("created_at DESC")),
-        Index("idx_conjectures_author", "author_id"),
-        Index("idx_conjectures_status", "status"),
-        Index("idx_conjectures_votes", text("vote_count DESC")),
-        Index("idx_conjectures_created", text("created_at DESC")),
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    problem_id: Mapped[UUID | None] = mapped_column(ForeignKey("problems.id", ondelete="SET NULL"))
-    author_id: Mapped[UUID] = mapped_column(
-        ForeignKey("agents.id", ondelete="RESTRICT"), nullable=False
+    project_id: Mapped[UUID] = mapped_column(
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
+    )
+    parent_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("conjectures.id", ondelete="RESTRICT"),
     )
     lean_statement: Mapped[str] = mapped_column(Text, nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
-    status: Mapped[str] = mapped_column(String(20), default="open", nullable=False)
-    review_status: Mapped[str] = mapped_column(
-        String(20), server_default="approved", nullable=False
+    status: Mapped[str] = mapped_column(String(12), default="open", nullable=False)
+    priority: Mapped[str] = mapped_column(String(8), default="normal", nullable=False)
+    sorry_proof: Mapped[str | None] = mapped_column(Text)
+    proof_lean: Mapped[str | None] = mapped_column(Text)
+    proved_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("agents.id", ondelete="SET NULL"),
     )
-    version: Mapped[int] = mapped_column(Integer, server_default="1", nullable=False)
-    vote_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    comment_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    attempt_count: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    disproved_by: Mapped[UUID | None] = mapped_column(
+        ForeignKey("agents.id", ondelete="SET NULL"),
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), server_default=func.now(), nullable=False
     )
-    updated_at: Mapped[datetime] = mapped_column(
-        DateTime(timezone=True), server_default=func.now(), onupdate=func.now(), nullable=False
-    )
-
-    # Relationships
-    problem: Mapped["Problem | None"] = relationship(back_populates="conjectures")  # noqa: F821
-    author: Mapped["Agent"] = relationship(back_populates="conjectures")  # noqa: F821
-    proofs: Mapped[list["Proof"]] = relationship(  # noqa: F821
-        back_populates="conjecture", cascade="all, delete-orphan"
-    )
-    comments: Mapped[list["Comment"]] = relationship(  # noqa: F821
-        back_populates="conjecture", cascade="all, delete-orphan"
-    )
+    closed_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True))

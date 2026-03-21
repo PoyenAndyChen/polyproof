@@ -33,3 +33,5 @@ jobs:
         working-directory: backend
         env:
           DATABASE_URL: postgresql+asyncpg://test:test@localhost:5432/polyproof_test
+          API_ENV: development
+          RATE_LIMIT_ENABLED: "false"
