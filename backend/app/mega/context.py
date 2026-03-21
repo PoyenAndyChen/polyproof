@@ -256,7 +256,7 @@ async def _build_recent_activity(
         return "(no prior invocation)"
 
     stmt = (
-        select(ActivityLog, Agent.name.label("agent_handle"))
+        select(ActivityLog, Agent.handle.label("agent_handle"))
         .outerjoin(Agent, ActivityLog.agent_id == Agent.id)
         .where(
             ActivityLog.project_id == project_id,
@@ -386,7 +386,7 @@ async def _build_conjecture_summaries(
         comments_after = []
         if cutoff:
             comments_stmt = (
-                select(Comment.body, Comment.created_at, Agent.name)
+                select(Comment.body, Comment.created_at, Agent.handle)
                 .join(Agent, Agent.id == Comment.author_id)
                 .where(
                     Comment.conjecture_id == conj_id,
@@ -449,7 +449,7 @@ async def _build_stuck_nodes(project_id: UUID, db: AsyncSession) -> str:
             # Get last 5 comments
             last_comments = (
                 await db.execute(
-                    select(Comment.body, Comment.created_at, Agent.name)
+                    select(Comment.body, Comment.created_at, Agent.handle)
                     .join(Agent, Agent.id == Comment.author_id)
                     .where(Comment.conjecture_id == conj.id)
                     .order_by(Comment.created_at.desc())

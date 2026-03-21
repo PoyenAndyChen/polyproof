@@ -186,7 +186,7 @@ async def _get_or_create_mega_agent_id(db: AsyncSession) -> UUID:
     """
     from app.models.agent import Agent
 
-    stmt = select(Agent.id).where(Agent.name == "mega_agent")
+    stmt = select(Agent.id).where(Agent.handle == "mega_agent", Agent.type == "mega")
     agent_id = await db.scalar(stmt)
     if agent_id:
         return agent_id
@@ -196,7 +196,8 @@ async def _get_or_create_mega_agent_id(db: AsyncSession) -> UUID:
     import secrets
 
     agent = Agent(
-        name="mega_agent",
+        handle="mega_agent",
+        type="mega",
         api_key_hash=hashlib.sha256(secrets.token_bytes(32)).hexdigest(),
         status="active",
     )

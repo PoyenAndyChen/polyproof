@@ -44,8 +44,7 @@ async def run_mega_agent(
         len(context),
     )
 
-    # Include code_interpreter as a separate tool type
-    tools = MEGA_AGENT_TOOLS + [{"type": "code_interpreter"}]
+    tools = MEGA_AGENT_TOOLS
 
     # Initial call
     total_tool_calls = 0
@@ -76,6 +75,11 @@ async def run_mega_agent(
 
     # Agent loop: execute tools and feed results back
     while response.output and total_tool_calls < _MAX_TOOL_CALLS:
+        # Log any text the model produced
+        for item in response.output:
+            if hasattr(item, "text") and item.text:
+                logger.info("Mega agent says:\n%s", item.text[:1000])
+
         tool_calls = [o for o in response.output if o.type == "function_call"]
         if not tool_calls:
             break
@@ -116,11 +120,15 @@ async def run_mega_agent(
                 )
                 continue
 
+            args_preview = json.dumps(args, default=str)
+            if len(args_preview) > 500:
+                args_preview = args_preview[:500] + "..."
             logger.info(
-                "Executing tool: %s (call %d/%d)",
-                call.name,
+                "Tool call %d/%d: %s(%s)",
                 total_tool_calls,
                 _MAX_TOOL_CALLS,
+                call.name,
+                args_preview,
             )
 
             result = await execute_tool(
@@ -131,11 +139,15 @@ async def run_mega_agent(
                 project_id=project_id,
             )
 
+            result_str = json.dumps(result, default=str)
+            result_preview = result_str[:300] + "..." if len(result_str) > 300 else result_str
+            logger.info("Tool result: %s", result_preview)
+
             tool_results.append(
                 {
                     "type": "function_call_output",
                     "call_id": call.call_id,
-                    "output": json.dumps(result, default=str),
+                    "output": result_str,
                 }
             )
 

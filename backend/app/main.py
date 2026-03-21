@@ -1,5 +1,9 @@
 import logging
 from collections.abc import AsyncGenerator
+
+# Verbose logging for mega agent in development
+logging.basicConfig(level=logging.INFO)
+logging.getLogger("app.mega").setLevel(logging.DEBUG)
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response

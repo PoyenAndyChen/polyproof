@@ -76,7 +76,8 @@ async def _verify_lean(args: dict, *, db: AsyncSession) -> dict:
             return {"status": "error", "error": f"Conjecture {conjecture_id} not found."}
         result = await lean_client.verify_proof(
             lean_statement=conjecture.lean_statement,
-            agent_tactics=lean_code,
+            tactics=lean_code,
+            conjecture_id=UUID(conjecture_id),
         )
     else:
         result = await lean_client.verify_freeform(lean_code)
@@ -139,24 +140,37 @@ async def _post_comment(
     from app.services import comment_service
 
     conjecture_id = args.get("conjecture_id")
-    comment_project_id = args.get("project_id")
+    comment_project_id = args.get("project_id") or str(project_id)
     body = args["body"]
     is_summary = args.get("is_summary", False)
     parent_comment_id = args.get("parent_comment_id")
 
-    result = await comment_service.create(
-        db=db,
-        body=body,
-        author_id=mega_agent_id,
-        conjecture_id=UUID(conjecture_id) if conjecture_id else None,
-        project_id=UUID(comment_project_id) if comment_project_id else None,
-        is_summary=is_summary,
-        parent_comment_id=UUID(parent_comment_id) if parent_comment_id else None,
-    )
+    from app.models.agent import Agent
+
+    mega_agent = await db.get(Agent, mega_agent_id)
+
+    if conjecture_id:
+        comment = await comment_service.create_conjecture_comment(
+            db=db,
+            conjecture_id=UUID(conjecture_id),
+            body=body,
+            author=mega_agent,
+            is_summary=is_summary,
+            parent_comment_id=UUID(parent_comment_id) if parent_comment_id else None,
+        )
+    else:
+        comment = await comment_service.create_project_comment(
+            db=db,
+            project_id=UUID(comment_project_id),
+            body=body,
+            author=mega_agent,
+            is_summary=is_summary,
+            parent_comment_id=UUID(parent_comment_id) if parent_comment_id else None,
+        )
 
     return {
         "status": "ok",
-        "comment_id": str(result["id"]),
+        "comment_id": str(comment.id),
         "is_summary": is_summary,
     }
 
