@@ -2,7 +2,7 @@
 
 from uuid import UUID
 
-from sqlalchemy import case, func, select, text
+from sqlalchemy import case, func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.agent import Agent
@@ -272,3 +272,47 @@ async def list_for_project(
         )
 
     return items, total
+
+
+async def set_priority(
+    conjecture_id: UUID,
+    priority: str,
+    mega_agent_id: UUID,
+    project_id: UUID,
+    db: AsyncSession,
+) -> dict:
+    """Set a conjecture's priority level. Called by the mega agent."""
+    from uuid import uuid4 as _uuid4
+
+    from app.models.activity_log import ActivityLog
+
+    valid_priorities = {"critical", "high", "normal", "low"}
+    if priority not in valid_priorities:
+        return {"status": "error", "error": f"Invalid priority: {priority}"}
+
+    conjecture = await db.get(Conjecture, conjecture_id)
+    if not conjecture:
+        return {"status": "error", "error": f"Conjecture {conjecture_id} not found."}
+
+    old_priority = conjecture.priority
+
+    await db.execute(
+        update(Conjecture).where(Conjecture.id == conjecture_id).values(priority=priority)
+    )
+
+    activity = ActivityLog(
+        id=_uuid4(),
+        project_id=project_id,
+        event_type="priority_changed",
+        conjecture_id=conjecture_id,
+        agent_id=mega_agent_id,
+        details={"old_priority": old_priority, "new_priority": priority},
+    )
+    db.add(activity)
+    await db.flush()
+
+    return {
+        "status": "ok",
+        "conjecture_id": str(conjecture_id),
+        "priority": priority,
+    }

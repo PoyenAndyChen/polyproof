@@ -1,3 +1,4 @@
+import logging
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
@@ -17,12 +18,19 @@ from app.errors import (
     validation_error_handler,
 )
 
+logger = logging.getLogger(__name__)
+
 
 @asynccontextmanager
 async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:
-    # Startup: scheduler will be initialized here in a later phase
+    """Application lifespan: start/stop the mega agent scheduler."""
+    from app.mega.scheduler import start_scheduler, stop_scheduler
+
+    start_scheduler()
+    logger.info("Mega agent scheduler started")
     yield
-    # Shutdown: cleanup will go here
+    stop_scheduler()
+    logger.info("Mega agent scheduler stopped")
 
 
 app = FastAPI(
