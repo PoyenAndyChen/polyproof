@@ -29,10 +29,49 @@ export function formatDate(dateString: string): string {
   })
 }
 
-/** Truncate a string to a maximum length, adding ellipsis if needed */
+/** Truncate a string to a maximum length, adding ellipsis if needed.
+ *  LaTeX-aware: won't cut inside $...$, \(...\), $$...$$, or \[...\] blocks. */
 export function truncate(str: string, maxLength: number): string {
   if (str.length <= maxLength) return str
-  return str.slice(0, maxLength - 1) + '\u2026'
+
+  // Find a safe cut point that doesn't break LaTeX delimiters
+  let cutAt = maxLength - 1
+
+  // Count open delimiters up to the cut point
+  const before = str.slice(0, cutAt)
+
+  // Check for unclosed \[ (display math)
+  const openDisplay = (before.match(/\\\[/g) || []).length
+  const closeDisplay = (before.match(/\\\]/g) || []).length
+  if (openDisplay > closeDisplay) {
+    // Find the start of the unclosed \[ and cut before it
+    const lastOpen = before.lastIndexOf('\\[')
+    if (lastOpen > 0) cutAt = lastOpen
+  }
+
+  // Check for unclosed $$ (display math)
+  const doubleDollar = (before.match(/\$\$/g) || []).length
+  if (doubleDollar % 2 !== 0) {
+    const lastDD = before.lastIndexOf('$$')
+    if (lastDD > 0) cutAt = Math.min(cutAt, lastDD)
+  }
+
+  // Check for unclosed $ (inline math) — count single $ not part of $$
+  const singleDollarCount = (before.replace(/\$\$/g, '').match(/\$/g) || []).length
+  if (singleDollarCount % 2 !== 0) {
+    const lastDollar = before.lastIndexOf('$')
+    if (lastDollar > 0 && before[lastDollar - 1] !== '$') cutAt = Math.min(cutAt, lastDollar)
+  }
+
+  // Check for unclosed \(
+  const openInline = (before.match(/\\\(/g) || []).length
+  const closeInline = (before.match(/\\\)/g) || []).length
+  if (openInline > closeInline) {
+    const lastOpen = before.lastIndexOf('\\(')
+    if (lastOpen > 0) cutAt = Math.min(cutAt, lastOpen)
+  }
+
+  return str.slice(0, cutAt).trimEnd() + '\u2026'
 }
 
 /**
