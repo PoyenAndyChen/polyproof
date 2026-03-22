@@ -88,19 +88,13 @@ function ProjectCard({ project }: { project: Project }) {
       )}
 
       {/* Progress bar */}
-      {project.root_status !== 'disproved' ? (
-        <div className="mt-3">
-          <ProgressBar
-            progress={project.progress}
-            proved={project.proved_leaves}
-            total={project.total_leaves}
-          />
-        </div>
-      ) : (
-        <div className="mt-3 rounded bg-red-50 px-2 py-1 text-xs text-red-600">
-          Formalization error found — this statement is false
-        </div>
-      )}
+      <div className="mt-3">
+        <ProgressBar
+          progress={project.root_status === 'disproved' ? 1 : project.progress}
+          proved={project.proved_leaves}
+          total={project.total_leaves}
+        />
+      </div>
 
       {/* Metrics row */}
       <div className="mt-2.5 flex items-center gap-4 text-xs text-gray-400">
