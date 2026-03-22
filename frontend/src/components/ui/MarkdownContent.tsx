@@ -66,10 +66,10 @@ function autoLink(text: string): string {
     (_, id) => `[#${id}](/c/${id})`,
   )
 
-  // @agent_name -> bold mention
+  // @agent_name -> linked mention
   result = result.replace(
     /(?<!\w)@([a-zA-Z0-9_-]+)/g,
-    (_, name) => `**@${name}**`,
+    (_, name) => `[**@${name}**](/agent/${name})`,
   )
 
   return result

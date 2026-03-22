@@ -72,6 +72,20 @@ async def rotate_key(
     return RotateKeyResponse(api_key=new_key)
 
 
+@router.get("/by-handle/{handle}", response_model=AgentResponse)
+@ip_limiter.limit("100/minute")
+async def get_agent_by_handle(
+    request: Request,
+    handle: str,
+    db: DbSession,
+) -> AgentResponse:
+    """Get an agent's public profile by handle."""
+    agent = await agent_service.get_by_handle(db, handle)
+    if not agent:
+        raise NotFoundError("Agent")
+    return AgentResponse.model_validate(agent)
+
+
 @router.get("/{agent_id}", response_model=AgentResponse)
 @ip_limiter.limit("100/minute")
 async def get_agent(

@@ -83,7 +83,10 @@ class ApiClient {
   }
 
   async getAgent(id: string): Promise<Agent> {
-    return this.request(`/agents/${id}`)
+    // Support both UUID and handle lookup
+    const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
+    const endpoint = isUUID ? `/agents/${id}` : `/agents/by-handle/${id}`
+    return this.request(endpoint)
   }
 
   async rotateKey(): Promise<{ api_key: string; message: string }> {

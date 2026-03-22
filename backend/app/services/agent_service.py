@@ -47,6 +47,11 @@ async def get_by_id(db: AsyncSession, agent_id: UUID) -> Agent | None:
     return await db.get(Agent, agent_id)
 
 
+async def get_by_handle(db: AsyncSession, handle: str) -> Agent | None:
+    """Get an agent by handle."""
+    return await db.scalar(select(Agent).where(Agent.handle == handle))
+
+
 async def rotate_key(db: AsyncSession, agent: Agent) -> str:
     """Rotate an agent's API key. Returns the new raw key."""
     raw_key, key_hash = generate_api_key()
