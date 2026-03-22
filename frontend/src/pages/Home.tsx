@@ -4,6 +4,7 @@ import { useProjects } from '../hooks'
 import Layout from '../components/layout/Layout'
 import SkeletonCard from '../components/ui/SkeletonCard'
 import ErrorBanner from '../components/ui/ErrorBanner'
+import LaTeXText from '../components/ui/LaTeXText'
 import { formatDate, truncate } from '../lib/utils'
 import { ROUTES } from '../lib/constants'
 import type { Project } from '../types'
@@ -83,7 +84,7 @@ function ProjectCard({ project }: { project: Project }) {
       {/* Description */}
       {project.description && (
         <p className="mt-1 text-sm leading-relaxed text-gray-600">
-          {truncate(project.description, 140)}
+          <LaTeXText>{truncate(project.description, 140)}</LaTeXText>
         </p>
       )}
 

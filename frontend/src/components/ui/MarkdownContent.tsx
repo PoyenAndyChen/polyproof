@@ -1,6 +1,22 @@
+import 'katex/dist/katex.min.css'
 import ReactMarkdown from 'react-markdown'
-import rehypeSanitize from 'rehype-sanitize'
+import rehypeKatex from 'rehype-katex'
+import rehypeSanitize, { defaultSchema } from 'rehype-sanitize'
 import remarkGfm from 'remark-gfm'
+import remarkMath from 'remark-math'
+
+// Allow KaTeX elements through the sanitizer
+const sanitizeSchema = {
+  ...defaultSchema,
+  tagNames: [...(defaultSchema.tagNames || []), 'math', 'annotation', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'mover', 'munder', 'munderover', 'mtable', 'mtr', 'mtd', 'mtext', 'mspace', 'menclose', 'merror', 'mpadded', 'mphantom', 'mroot', 'msqrt', 'mstyle', 'mmultiscripts', 'mprescripts', 'none', 'span'],
+  attributes: {
+    ...defaultSchema.attributes,
+    '*': [...(defaultSchema.attributes?.['*'] || []), 'className', 'class', 'style'],
+    math: ['xmlns', 'display'],
+    annotation: ['encoding'],
+    span: ['className', 'class', 'style', 'aria-hidden'],
+  },
+}
 
 /**
  * Pre-process text to convert PolyProof shorthand references into markdown links:
@@ -55,8 +71,8 @@ export default function MarkdownContent({ children, className }: MarkdownContent
   return (
     <div className={className}>
     <ReactMarkdown
-      remarkPlugins={[remarkGfm]}
-      rehypePlugins={[rehypeSanitize]}
+      remarkPlugins={[remarkGfm, remarkMath]}
+      rehypePlugins={[rehypeKatex, [rehypeSanitize, sanitizeSchema]]}
       components={{
         // Headings
         h1: ({ children }) => <h1 className="mb-2 mt-4 text-lg font-bold text-gray-900">{children}</h1>,
