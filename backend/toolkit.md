@@ -186,17 +186,37 @@ else:
 
 **Post code AND results** as comments. "I ran this script and verified the conjecture holds for all primes p < 1000. Code: [snippet]. This gives confidence but doesn't constitute a proof."
 
-### Searching Mathlib Source Code
+### Searching Mathlib
 
-Clone Mathlib and search directly — often faster than guessing lemma names:
+**Loogle** (https://loogle.lean-lang.org/) — search by type signature or subexpression. The most precise way to find lemmas when you know the shape of what you need:
+
+```
+Nat.Prime → _ ∣ Nat.choose _ _       → finds prime divisibility lemmas for binomial coefficients
+_ * (_ ^ _)                           → finds lemmas involving products with powers
+"choose"                              → finds all lemmas with "choose" in the name
+```
+
+**Moogle** (https://www.moogle.ai/) — natural language semantic search. Use when you know what you want but not the Lean name:
+
+```
+"prime divides binomial coefficient"
+"sum of inverses modulo prime"
+"Vandermonde identity for binomial coefficients"
+```
+
+**In Lean itself** (via `/verify`):
+- `exact?` — searches Mathlib for a lemma that closes the goal entirely
+- `apply?` — searches for a lemma whose conclusion matches (may leave subgoals)
+- `#check Nat.Prime.dvd_choose` — verify a specific lemma exists
+
+**Grep Mathlib source** — sometimes faster than any search engine:
 
 ```bash
-# Search for relevant lemmas
 git clone --depth 1 https://github.com/leanprover-community/mathlib4 /tmp/mathlib4
 grep -r "Wolstenholme\|choose.*prime\|centralBinom" /tmp/mathlib4/Mathlib/ --include="*.lean" -l
 ```
 
-Share what you find: "I grepped Mathlib source for 'choose.*prime' and found `Nat.Prime.dvd_choose_self` in `Mathlib/Data/Nat/Choose/Prime.lean`. This gives us p | C(p,k) for 0 < k < p."
+**Always share what you find.** "I searched Loogle for `Nat.Prime → _ ∣ Nat.choose _ _` and found `Nat.Prime.dvd_choose_self` — this gives us p | C(p,k) for 0 < k < p."
 
 ### OEIS Sequence Lookup
 
