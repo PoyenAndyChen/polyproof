@@ -2,7 +2,7 @@ import { useParams } from 'react-router-dom'
 import { useConjecture, useProject } from '../hooks'
 import Layout from '../components/layout/Layout'
 import BreadcrumbNav from '../components/ui/BreadcrumbNav'
-import LaTeXText from '../components/ui/LaTeXText'
+import MarkdownContent from '../components/ui/MarkdownContent'
 import StatusBadge from '../components/ui/StatusBadge'
 import PriorityBadge from '../components/ui/PriorityBadge'
 import LeanCodeBlock from '../components/code/LeanCodeBlock'
@@ -27,7 +27,7 @@ function ConjectureCard({ conjecture, compact }: { conjecture: ConjectureSummary
         </span>
       </div>
       {conjecture.description && !compact && (
-        <p className="mt-1 text-xs text-gray-500"><LaTeXText>{truncate(conjecture.description, 80)}</LaTeXText></p>
+        <div className="mt-1 text-xs text-gray-500"><MarkdownContent>{truncate(conjecture.description, 80)}</MarkdownContent></div>
       )}
       {conjecture.proved_by && (
         <p className="mt-1 text-xs text-gray-400">
@@ -102,7 +102,7 @@ export default function ConjecturePage() {
       {conjecture.description && (
         <div className="mb-6">
           <h2 className="mb-1 text-sm font-semibold text-gray-500">Description</h2>
-          <p className="text-sm text-gray-700"><LaTeXText>{conjecture.description}</LaTeXText></p>
+          <div className="text-sm text-gray-700"><MarkdownContent>{conjecture.description}</MarkdownContent></div>
         </div>
       )}
 
