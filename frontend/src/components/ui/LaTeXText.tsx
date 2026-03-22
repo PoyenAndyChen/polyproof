@@ -74,6 +74,8 @@ export default function LaTeXText({ children }: { children: string }) {
           const html = katex.renderToString(part.content, {
             displayMode: part.type === 'display',
             throwOnError: false,
+            trust: false,
+            strict: false,
           })
           return (
             <span

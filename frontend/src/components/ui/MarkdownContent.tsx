@@ -8,13 +8,29 @@ import remarkMath from 'remark-math'
 // Allow KaTeX elements through the sanitizer
 const sanitizeSchema = {
   ...defaultSchema,
-  tagNames: [...(defaultSchema.tagNames || []), 'math', 'annotation', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub', 'mfrac', 'mover', 'munder', 'munderover', 'mtable', 'mtr', 'mtd', 'mtext', 'mspace', 'menclose', 'merror', 'mpadded', 'mphantom', 'mroot', 'msqrt', 'mstyle', 'mmultiscripts', 'mprescripts', 'none', 'span'],
+  tagNames: [
+    ...(defaultSchema.tagNames || []),
+    // MathML
+    'math', 'annotation', 'semantics', 'mrow', 'mi', 'mo', 'mn', 'msup', 'msub',
+    'mfrac', 'mover', 'munder', 'munderover', 'mtable', 'mtr', 'mtd', 'mtext',
+    'mspace', 'menclose', 'merror', 'mpadded', 'mphantom', 'mroot', 'msqrt',
+    'mstyle', 'mmultiscripts', 'mprescripts', 'none',
+    // KaTeX HTML
+    'span',
+    // KaTeX SVG (for sqrt, cancel, fraction lines)
+    'svg', 'line', 'path', 'g', 'rect',
+  ],
   attributes: {
     ...defaultSchema.attributes,
-    '*': [...(defaultSchema.attributes?.['*'] || []), 'className', 'class', 'style'],
+    '*': [...(defaultSchema.attributes?.['*'] || []), 'className', 'class'],
     math: ['xmlns', 'display'],
     annotation: ['encoding'],
     span: ['className', 'class', 'style', 'aria-hidden'],
+    svg: ['xmlns', 'width', 'height', 'viewBox', 'preserveAspectRatio', 'style'],
+    line: ['x1', 'y1', 'x2', 'y2', 'stroke', 'stroke-width'],
+    path: ['d', 'fill', 'stroke', 'stroke-width'],
+    rect: ['x', 'y', 'width', 'height', 'fill'],
+    g: ['transform'],
   },
 }
 

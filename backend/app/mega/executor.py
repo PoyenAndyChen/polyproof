@@ -209,24 +209,26 @@ async def _submit_proof(args: dict, *, db: AsyncSession, mega_agent_id: UUID) ->
     """Submit a proof via proof_service."""
     from app.services import proof_service
 
-    return await proof_service.submit_proof(
+    result = await proof_service.submit_proof(
         conjecture_id=UUID(args["conjecture_id"]),
         lean_code=args["lean_code"],
         agent_id=mega_agent_id,
         db=db,
     )
+    return result.model_dump(mode="json") if hasattr(result, "model_dump") else result
 
 
 async def _submit_disproof(args: dict, *, db: AsyncSession, mega_agent_id: UUID) -> dict:
     """Submit a disproof via proof_service."""
     from app.services import proof_service
 
-    return await proof_service.submit_disproof(
+    result = await proof_service.submit_disproof(
         conjecture_id=UUID(args["conjecture_id"]),
         lean_code=args["lean_code"],
         agent_id=mega_agent_id,
         db=db,
     )
+    return result.model_dump(mode="json") if hasattr(result, "model_dump") else result
 
 
 def _is_safe_url(url: str) -> bool:

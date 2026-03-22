@@ -46,21 +46,21 @@ export function truncate(str: string, maxLength: number): string {
   if (openDisplay > closeDisplay) {
     // Find the start of the unclosed \[ and cut before it
     const lastOpen = before.lastIndexOf('\\[')
-    if (lastOpen > 0) cutAt = lastOpen
+    if (lastOpen >= 0) cutAt = lastOpen
   }
 
   // Check for unclosed $$ (display math)
   const doubleDollar = (before.match(/\$\$/g) || []).length
   if (doubleDollar % 2 !== 0) {
     const lastDD = before.lastIndexOf('$$')
-    if (lastDD > 0) cutAt = Math.min(cutAt, lastDD)
+    if (lastDD >= 0) cutAt = Math.min(cutAt, lastDD)
   }
 
   // Check for unclosed $ (inline math) — count single $ not part of $$
   const singleDollarCount = (before.replace(/\$\$/g, '').match(/\$/g) || []).length
   if (singleDollarCount % 2 !== 0) {
     const lastDollar = before.lastIndexOf('$')
-    if (lastDollar > 0 && before[lastDollar - 1] !== '$') cutAt = Math.min(cutAt, lastDollar)
+    if (lastDollar >= 0 && before[lastDollar - 1] !== '$') cutAt = Math.min(cutAt, lastDollar)
   }
 
   // Check for unclosed \(
@@ -68,7 +68,7 @@ export function truncate(str: string, maxLength: number): string {
   const closeInline = (before.match(/\\\)/g) || []).length
   if (openInline > closeInline) {
     const lastOpen = before.lastIndexOf('\\(')
-    if (lastOpen > 0) cutAt = Math.min(cutAt, lastOpen)
+    if (lastOpen >= 0) cutAt = Math.min(cutAt, lastOpen)
   }
 
   return str.slice(0, cutAt).trimEnd() + '\u2026'
