@@ -23,14 +23,14 @@ export interface Project {
   id: string
   title: string
   description: string
-  root_conjecture_id: string
+  root_conjecture_id: string | null
   progress: number
   total_leaves: number
   proved_leaves: number
   comment_count: number
   active_agent_count: number
   last_activity_at: string | null
-  root_status: ConjectureStatus
+  root_status: ConjectureStatus | null
   created_at: string
 }
 

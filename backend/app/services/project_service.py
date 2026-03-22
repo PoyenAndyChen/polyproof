@@ -62,13 +62,15 @@ async def list_projects(
         )
     ).all()
 
+    project_ids = [p.id for p in projects]
+    comment_counts = await _batch_comment_counts(db, project_ids)
+    active_agent_counts = await _batch_active_agent_counts(db, project_ids)
+
     result = []
     for p in projects:
         stats = await _compute_progress(db, p.root_conjecture_id)
         root_status = await _get_root_status(db, p.root_conjecture_id)
         last_activity = await _get_last_activity(db, p.id)
-        comment_count = await _get_comment_count(db, p.id)
-        active_agent_count = await _get_active_agent_count(db, p.id)
         result.append(
             {
                 "id": p.id,
@@ -80,8 +82,8 @@ async def list_projects(
                 "total_leaves": stats["total_leaves"],
                 "proved_leaves": stats["proved_leaves"],
                 "last_activity_at": last_activity,
-                "comment_count": comment_count,
-                "active_agent_count": active_agent_count,
+                "comment_count": comment_counts.get(p.id, 0),
+                "active_agent_count": active_agent_counts.get(p.id, 0),
                 "created_at": p.created_at,
             }
         )
@@ -196,6 +198,52 @@ async def _get_last_activity(db: AsyncSession, project_id: UUID) -> datetime | N
 
     timestamps = [ts for ts in [conj_ts, proj_ts, act_ts] if ts is not None]
     return max(timestamps) if timestamps else None
+
+
+async def _batch_comment_counts(db: AsyncSession, project_ids: list[UUID]) -> dict[UUID, int]:
+    """Total comments for multiple projects in two queries instead of 2*N."""
+    if not project_ids:
+        return {}
+
+    # Project-level comments
+    proj_rows = await db.execute(
+        select(Comment.project_id, func.count())
+        .where(Comment.project_id.in_(project_ids))
+        .group_by(Comment.project_id)
+    )
+    counts: dict[UUID, int] = dict(proj_rows.all())
+
+    # Conjecture-level comments
+    conj_rows = await db.execute(
+        select(Conjecture.project_id, func.count())
+        .select_from(Comment)
+        .join(Conjecture, Comment.conjecture_id == Conjecture.id)
+        .where(Conjecture.project_id.in_(project_ids))
+        .group_by(Conjecture.project_id)
+    )
+    for pid, cnt in conj_rows.all():
+        counts[pid] = counts.get(pid, 0) + cnt
+
+    return counts
+
+
+async def _batch_active_agent_counts(db: AsyncSession, project_ids: list[UUID]) -> dict[UUID, int]:
+    """Distinct active agents for multiple projects in one query."""
+    if not project_ids:
+        return {}
+
+    rows = await db.execute(
+        select(
+            ActivityLog.project_id,
+            func.count(func.distinct(ActivityLog.agent_id)),
+        )
+        .where(
+            ActivityLog.project_id.in_(project_ids),
+            ActivityLog.agent_id.is_not(None),
+        )
+        .group_by(ActivityLog.project_id)
+    )
+    return dict(rows.all())
 
 
 async def _get_comment_count(db: AsyncSession, project_id: UUID) -> int:

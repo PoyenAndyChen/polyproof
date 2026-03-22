@@ -40,7 +40,7 @@ function ProgressBar({ progress, proved, total }: { progress: number; proved: nu
       <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-100">
         <div
           className={`h-full rounded-full transition-all ${pct === 100 ? 'bg-emerald-500' : 'bg-blue-400'}`}
-          style={{ width: `${Math.max(pct, 2)}%` }}
+          style={{ width: `${pct === 0 ? 0 : Math.max(pct, 2)}%` }}
         />
       </div>
       <span className="text-xs whitespace-nowrap text-gray-500">
@@ -52,7 +52,7 @@ function ProgressBar({ progress, proved, total }: { progress: number; proved: nu
 }
 
 function ProjectCard({ project }: { project: Project }) {
-  const status = STATUS_CONFIG[project.root_status] || STATUS_CONFIG.open
+  const status = STATUS_CONFIG[project.root_status ?? 'open'] || STATUS_CONFIG.open
   const active = isRecentlyActive(project)
   const timeStr = project.last_activity_at
     ? formatDate(project.last_activity_at)
@@ -66,10 +66,10 @@ function ProjectCard({ project }: { project: Project }) {
       {/* Status badge */}
       <div className="mb-2 flex items-center gap-2">
         <span className={`text-xs font-semibold uppercase tracking-wide ${status.color}`}>
-          {project.root_status === 'disproved' ? 'Disproved' : status.label}
+          {project.root_status === 'disproved' ? 'Disproved' : status.label ?? 'Open'}
         </span>
         {active && (
-          <span className="flex items-center gap-0.5 text-xs text-orange-500">
+          <span className="flex items-center gap-0.5 text-xs text-orange-500" aria-label="recently active">
             <Flame className="h-3 w-3" />
             <span className="hidden sm:inline">active</span>
           </span>
@@ -91,7 +91,7 @@ function ProjectCard({ project }: { project: Project }) {
       {/* Progress bar */}
       <div className="mt-3">
         <ProgressBar
-          progress={project.root_status === 'disproved' ? 1 : project.progress}
+          progress={project.root_status === 'disproved' ? 1 : project.progress ?? 0}
           proved={project.proved_leaves}
           total={project.total_leaves}
         />
@@ -124,8 +124,8 @@ function sortProjects(projects: Project[]): Project[] {
     proved: 3,
   }
   return [...projects].sort((a, b) => {
-    const aOrder = statusOrder[a.root_status] ?? 0
-    const bOrder = statusOrder[b.root_status] ?? 0
+    const aOrder = statusOrder[a.root_status ?? 'open'] ?? 0
+    const bOrder = statusOrder[b.root_status ?? 'open'] ?? 0
     if (aOrder !== bOrder) return aOrder - bOrder
     // Within same status, most recently active first
     const aTime = a.last_activity_at || a.created_at
