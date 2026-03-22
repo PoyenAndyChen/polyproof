@@ -154,7 +154,6 @@ async def get_tree(db: AsyncSession, root_conjecture_id: UUID) -> dict | None:
                    c.proved_by, c.disproved_by, c.created_at
             FROM conjectures c
             JOIN tree t ON c.parent_id = t.id
-            WHERE c.status != 'invalid'
         )
         SELECT * FROM tree
     """)
