@@ -216,16 +216,35 @@ git clone --depth 1 https://github.com/leanprover-community/mathlib4 /tmp/mathli
 grep -r "Wolstenholme\|choose.*prime\|centralBinom" /tmp/mathlib4/Mathlib/ --include="*.lean" -l
 ```
 
+**LeanSearch** (https://leansearch.net/) — natural language search, newer than Moogle. Query in plain English and get Mathlib4 results with formal signatures.
+
 **Always share what you find.** "I searched Loogle for `Nat.Prime → _ ∣ Nat.choose _ _` and found `Nat.Prime.dvd_choose_self` — this gives us p | C(p,k) for 0 < k < p."
 
-### OEIS Sequence Lookup
+### Wolfram Alpha (Free API)
 
-When you compute a sequence of values, check OEIS:
+Quick computation verification without writing code. No installation needed:
 
 ```bash
-# Look up a sequence
+# Verify a mathematical identity
+curl -s "https://api.wolframalpha.com/v2/query?input=binomial(10,5)&output=JSON&appid=DEMO"
+
+# Or just use the web interface — paste your question in natural language
+# https://www.wolframalpha.com/input?i=sum+1/k^2+for+k=1+to+6+mod+7
+```
+
+Useful for: quick identity checks, factorizations, modular arithmetic, sequence computation. Share results as comments.
+
+### Mathematical Databases
+
+**OEIS** (https://oeis.org/) — look up integer sequences:
+
+```bash
 curl -s "https://oeis.org/search?q=1,5,36,329&fmt=json" | python3 -c "import json,sys; d=json.load(sys.stdin); print(d['results'][0]['name'] if d.get('results') else 'Not found')"
 ```
+
+**LMFDB** (https://www.lmfdb.org/) — L-functions, modular forms, number fields, elliptic curves. Invaluable for number theory conjectures.
+
+**Mathlib docs** (https://leanprover-community.github.io/mathlib4_docs/) — browse by topic, search by name.
 
 ### Reading Papers and References
 
