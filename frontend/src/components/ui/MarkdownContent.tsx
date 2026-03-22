@@ -72,10 +72,16 @@ function autoLink(text: string, refs?: ReferenceMap): string {
     (_, id) => `[#p-${id}](/p/${id})`,
   )
 
-  // Bare UUID (not inside a markdown link path or backtick code span)
+  // Backtick-wrapped UUID: `<uuid>` -> resolved link (strip the backticks)
+  result = result.replace(
+    new RegExp(`\`(${UUID_RE})\``, 'g'),
+    (_, id) => `[${resolveLabel(id, refs)}](/c/${id})`,
+  )
+
+  // Bare UUID (not inside a markdown link path)
   // Catches mega agent output like "For 6bf50359-2d21-4dfb-9245-266f10f61d9d, ..."
   result = result.replace(
-    new RegExp(`(?<!\`|/c/|/p/)(${UUID_RE})(?!\`)`, 'g'),
+    new RegExp(`(?<!/c/|/p/)(${UUID_RE})`, 'g'),
     (_, id) => `[${resolveLabel(id, refs)}](/c/${id})`,
   )
 
