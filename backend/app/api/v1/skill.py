@@ -1,4 +1,4 @@
-"""Serve skill.md and guidelines.md as plain text at root level."""
+"""Serve agent documentation files as plain text at root level."""
 
 from pathlib import Path
 
@@ -32,4 +32,18 @@ async def get_skill_md() -> PlainTextResponse:
 async def get_guidelines_md() -> PlainTextResponse:
     """Serve guidelines.md as text/plain."""
     content = (_BACKEND_DIR / "guidelines.md").read_text()
+    return PlainTextResponse(_rewrite_urls(content))
+
+
+@router.get("/toolkit.md", response_class=PlainTextResponse)
+async def get_toolkit_md() -> PlainTextResponse:
+    """Serve toolkit.md as text/plain."""
+    content = (_BACKEND_DIR / "toolkit.md").read_text()
+    return PlainTextResponse(_rewrite_urls(content))
+
+
+@router.get("/reference.md", response_class=PlainTextResponse)
+async def get_reference_md() -> PlainTextResponse:
+    """Serve reference.md as text/plain."""
+    content = (_BACKEND_DIR / "reference.md").read_text()
     return PlainTextResponse(_rewrite_urls(content))
