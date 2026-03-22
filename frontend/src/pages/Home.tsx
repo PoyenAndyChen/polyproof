@@ -33,14 +33,15 @@ function isRecentlyActive(project: Project): boolean {
   return diff < 10 * 60 * 1000 // 10 minutes
 }
 
-function ProgressBar({ progress, proved, total }: { progress: number; proved: number; total: number }) {
-  const pct = Math.round(progress * 100)
+function ProjectProgressBar({ progress, proved, total }: { progress: number; proved: number; total: number }) {
+  // progress is already 0-100 (converted by API client), not 0-1
+  const pct = Math.round(progress)
   return (
     <div className="flex items-center gap-2">
-      <div className="h-1.5 flex-1 overflow-hidden rounded-full bg-gray-100">
+      <div className="h-2 flex-1 overflow-hidden rounded-full" style={{ backgroundColor: '#d1d5db' }}>
         <div
-          className={`h-full rounded-full transition-all ${pct === 100 ? 'bg-emerald-500' : 'bg-blue-400'}`}
-          style={{ width: `${pct === 0 ? 0 : Math.max(pct, 2)}%` }}
+          className={`h-full rounded-full transition-all ${pct >= 100 ? 'bg-emerald-500' : 'bg-blue-500'}`}
+          style={{ width: `${pct === 0 ? '0%' : `${Math.min(Math.max(pct, 2), 100)}%`}` }}
         />
       </div>
       <span className="text-xs whitespace-nowrap text-gray-500">
@@ -90,7 +91,7 @@ function ProjectCard({ project }: { project: Project }) {
 
       {/* Progress bar */}
       <div className="mt-3">
-        <ProgressBar
+        <ProjectProgressBar
           progress={project.root_status === 'disproved' ? 1 : project.progress ?? 0}
           proved={project.proved_leaves}
           total={project.total_leaves}
