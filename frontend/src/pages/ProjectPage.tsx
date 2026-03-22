@@ -1,7 +1,7 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { useSWRConfig } from 'swr'
-import { useProject, useProjectTree, useProjectComments } from '../hooks'
+import { useProject, useProjectTree } from '../hooks'
 import Layout from '../components/layout/Layout'
 import LaTeXText from '../components/ui/LaTeXText'
 import ProgressBar from '../components/ui/ProgressBar'
@@ -9,20 +9,13 @@ import ErrorBanner from '../components/ui/ErrorBanner'
 import Spinner from '../components/ui/Spinner'
 import ProofTree from '../components/tree/ProofTree'
 import ActivityFeed from '../components/activity/ActivityFeed'
-import CommentThread from '../components/comment/CommentThread'
 import { flattenTree } from '../lib/utils'
-import { cn } from '../lib/utils'
-import { api } from '../api/client'
-
-type Tab = 'activity' | 'discussion'
 
 export default function ProjectPage() {
   const { id } = useParams<{ id: string }>()
   const { data: project, error: projectError, isLoading: projectLoading, mutate: mutateProject } = useProject(id!)
   const { data: treeData, error: treeError, isLoading: treeLoading } = useProjectTree(id!)
-  const { data: comments, mutate: mutateComments } = useProjectComments(id!)
   const { mutate: globalMutate } = useSWRConfig()
-  const [activeTab, setActiveTab] = useState<Tab>('activity')
 
   const flatNodes = useMemo(() => {
     if (!treeData?.root || !id) return []
@@ -64,11 +57,6 @@ export default function ProjectPage() {
     )
   }
 
-  const handlePostComment = async (body: string, parentCommentId?: string) => {
-    await api.postProjectComment(id!, body, parentCommentId)
-    mutateComments()
-  }
-
   return (
     <Layout>
       {/* Header */}
@@ -94,32 +82,10 @@ export default function ProjectPage() {
         </div>
       )}
 
-      {/* Tabs */}
-      <div className="mt-6 border-b border-gray-200">
-        <div className="flex gap-4">
-          {(['activity', 'discussion'] as Tab[]).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => setActiveTab(tab)}
-              className={cn(
-                'border-b-2 px-1 pb-2 text-sm font-medium capitalize transition-colors',
-                activeTab === tab
-                  ? 'border-gray-900 text-gray-900'
-                  : 'border-transparent text-gray-500 hover:text-gray-700',
-              )}
-            >
-              {tab === 'activity' ? 'Activity Feed' : 'Discussion'}
-            </button>
-          ))}
-        </div>
-      </div>
-
-      {/* Tab content */}
-      <div className="mt-4">
-        {activeTab === 'activity' && <ActivityFeed projectId={id!} />}
-        {activeTab === 'discussion' && comments && (
-          <CommentThread thread={comments} onPostComment={handlePostComment} />
-        )}
+      {/* Activity Feed */}
+      <div className="mt-6">
+        <h2 className="mb-3 text-sm font-semibold text-gray-500">Activity Feed</h2>
+        <ActivityFeed projectId={id!} />
       </div>
     </Layout>
   )

@@ -1,9 +1,7 @@
-import { useState, useRef, useEffect } from 'react'
+import { useState } from 'react'
 import { Link, useLocation } from 'react-router-dom'
-import { Menu, X, ChevronDown, User, LogOut } from 'lucide-react'
-import { useAuthStore } from '../../store/auth'
+import { Menu, X } from 'lucide-react'
 import { cn } from '../../lib/utils'
-import { ROUTES } from '../../lib/constants'
 
 const navLinks = [
   { to: '/', label: 'Projects' },
@@ -12,23 +10,8 @@ const navLinks = [
 ]
 
 export default function Header() {
-  const agent = useAuthStore((s) => s.agent)
-  const logout = useAuthStore((s) => s.logout)
   const location = useLocation()
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false)
-  const [dropdownOpen, setDropdownOpen] = useState(false)
-  const dropdownRef = useRef<HTMLDivElement>(null)
-
-  // Close dropdown on outside click
-  useEffect(() => {
-    function handleClick(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false)
-      }
-    }
-    document.addEventListener('mousedown', handleClick)
-    return () => document.removeEventListener('mousedown', handleClick)
-  }, [])
 
   return (
     <header className="sticky top-0 z-40 border-b border-gray-700 bg-gray-900">
@@ -64,57 +47,6 @@ export default function Header() {
               </Link>
             ))}
           </nav>
-        </div>
-
-        <div className="flex items-center gap-2">
-          {agent ? (
-            <div className="relative" ref={dropdownRef}>
-              <button
-                onClick={() => setDropdownOpen(!dropdownOpen)}
-                className="inline-flex items-center gap-1.5 rounded-md px-3 py-1.5 text-sm font-medium text-gray-300 hover:bg-gray-800 hover:text-white"
-              >
-                {agent.handle}
-                <ChevronDown className="h-3.5 w-3.5" />
-              </button>
-              {dropdownOpen && (
-                <div className="absolute right-0 mt-1 w-48 rounded-md bg-white py-1 shadow-lg ring-1 ring-black/5">
-                  <Link
-                    to={ROUTES.AGENT(agent.id)}
-                    onClick={() => setDropdownOpen(false)}
-                    className="flex items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  >
-                    <User className="h-3.5 w-3.5" />
-                    Profile
-                  </Link>
-                  <button
-                    onClick={() => {
-                      logout()
-                      setDropdownOpen(false)
-                    }}
-                    className="flex w-full items-center gap-2 px-4 py-2 text-sm text-gray-700 hover:bg-gray-100"
-                  >
-                    <LogOut className="h-3.5 w-3.5" />
-                    Logout
-                  </button>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="flex items-center gap-1">
-              <Link
-                to="/login"
-                className="rounded-md px-3 py-1.5 text-sm font-medium text-gray-300 hover:bg-gray-800 hover:text-white"
-              >
-                Login
-              </Link>
-              <Link
-                to="/register"
-                className="rounded-md bg-white px-3 py-1.5 text-sm font-medium text-gray-900 hover:bg-gray-100"
-              >
-                Register
-              </Link>
-            </div>
-          )}
         </div>
       </div>
 

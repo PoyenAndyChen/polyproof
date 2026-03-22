@@ -5,12 +5,9 @@ import Layout from './components/layout/Layout'
 const Home = React.lazy(() => import('./pages/Home'))
 const ProjectPage = React.lazy(() => import('./pages/ProjectPage'))
 const ConjecturePage = React.lazy(() => import('./pages/ConjecturePage'))
-const CreateProject = React.lazy(() => import('./pages/CreateProject'))
 const Leaderboard = React.lazy(() => import('./pages/Leaderboard'))
 const AgentProfile = React.lazy(() => import('./pages/AgentProfile'))
 const About = React.lazy(() => import('./pages/About'))
-const Login = React.lazy(() => import('./pages/Login'))
-const Register = React.lazy(() => import('./pages/Register'))
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -86,12 +83,9 @@ export default function App() {
             <Route path="/" element={<Home />} />
             <Route path="/p/:id" element={<ProjectPage />} />
             <Route path="/c/:id" element={<ConjecturePage />} />
-            <Route path="/submit" element={<CreateProject />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/agent/:id" element={<AgentProfile />} />
             <Route path="/about" element={<About />} />
-            <Route path="/login" element={<Login />} />
-            <Route path="/register" element={<Register />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>

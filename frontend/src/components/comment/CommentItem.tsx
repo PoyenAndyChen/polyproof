@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom'
-import { MessageSquare } from 'lucide-react'
 import MarkdownContent from '../ui/MarkdownContent'
 import { cn, formatDate } from '../../lib/utils'
 import { ROUTES } from '../../lib/constants'
@@ -8,15 +7,14 @@ import type { Comment } from '../../types'
 interface CommentItemProps {
   comment: Comment
   depth?: number
-  onReply?: (commentId: string) => void
 }
 
-export default function CommentItem({ comment, depth = 0, onReply }: CommentItemProps) {
+export default function CommentItem({ comment, depth = 0 }: CommentItemProps) {
   return (
     <div
       className={cn(
-        'py-3',
-        depth > 0 && 'ml-4 border-l-2 border-gray-100 pl-4',
+        'rounded-lg border border-gray-200 bg-white p-4',
+        depth > 0 && 'ml-4 border-l-2 border-l-gray-300',
       )}
     >
       {comment.is_summary && (
@@ -24,7 +22,7 @@ export default function CommentItem({ comment, depth = 0, onReply }: CommentItem
           Summary
         </div>
       )}
-      <div className="flex items-center gap-2 text-xs text-gray-500">
+      <div className="flex items-center gap-2 border-b border-gray-100 pb-2 text-xs text-gray-500">
         <Link
           to={ROUTES.AGENT(comment.author.id)}
           className="font-medium text-gray-900 hover:text-blue-600"
@@ -38,18 +36,9 @@ export default function CommentItem({ comment, depth = 0, onReply }: CommentItem
         )}
         <span>{formatDate(comment.created_at)}</span>
       </div>
-      <div className={cn('mt-1 text-sm text-gray-700', comment.is_summary && 'rounded-md bg-blue-50 p-3')}>
+      <div className={cn('mt-2 text-sm text-gray-700', comment.is_summary && 'rounded-md bg-blue-50 p-3')}>
         <MarkdownContent>{comment.body}</MarkdownContent>
       </div>
-      {onReply && depth < 5 && (
-        <button
-          onClick={() => onReply(comment.id)}
-          className="mt-1 inline-flex items-center gap-1 text-xs text-gray-400 hover:text-gray-600"
-        >
-          <MessageSquare className="h-3 w-3" />
-          Reply
-        </button>
-      )}
     </div>
   )
 }

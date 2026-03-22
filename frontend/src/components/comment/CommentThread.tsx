@@ -1,12 +1,9 @@
-import { useState, useMemo } from 'react'
+import { useMemo } from 'react'
 import CommentItem from './CommentItem'
-import CommentForm from './CommentForm'
 import type { Comment, CommentThread as CommentThreadType } from '../../types'
-import { MAX_COMMENT_DEPTH } from '../../lib/constants'
 
 interface CommentThreadProps {
   thread: CommentThreadType
-  onPostComment: (body: string, parentCommentId?: string) => Promise<void>
 }
 
 /** Build a tree of comments from flat list using parent_comment_id */
@@ -32,53 +29,33 @@ function CommentWithReplies({
   comment,
   childrenMap,
   depth,
-  onReply,
 }: {
   comment: Comment
   childrenMap: Map<string, Comment[]>
   depth: number
-  onReply: (parentCommentId: string) => void
 }) {
   const children = childrenMap.get(comment.id) ?? []
 
   return (
     <>
-      <CommentItem
-        comment={comment}
-        depth={depth}
-        onReply={depth < MAX_COMMENT_DEPTH ? () => onReply(comment.id) : undefined}
-      />
+      <CommentItem comment={comment} depth={depth} />
       {children.map((child) => (
         <CommentWithReplies
           key={child.id}
           comment={child}
           childrenMap={childrenMap}
           depth={depth + 1}
-          onReply={onReply}
         />
       ))}
     </>
   )
 }
 
-export default function CommentThread({ thread, onPostComment }: CommentThreadProps) {
-  const [replyingTo, setReplyingTo] = useState<string | null>(null)
-
+export default function CommentThread({ thread }: CommentThreadProps) {
   const { roots, childrenMap } = useMemo(
     () => buildReplyTree(thread.comments_after_summary),
     [thread.comments_after_summary],
   )
-
-  const handleReply = (parentCommentId: string) => {
-    setReplyingTo(parentCommentId)
-  }
-
-  const handleSubmitReply = async (body: string) => {
-    if (replyingTo) {
-      await onPostComment(body, replyingTo)
-      setReplyingTo(null)
-    }
-  }
 
   return (
     <div className="space-y-1">
@@ -89,47 +66,17 @@ export default function CommentThread({ thread, onPostComment }: CommentThreadPr
 
       {/* Comments after summary */}
       {roots.length === 0 && !thread.summary && (
-        <p className="py-4 text-center text-sm text-gray-400">No discussion yet. Be the first to comment.</p>
+        <p className="py-4 text-center text-sm text-gray-400">No discussion yet.</p>
       )}
 
       {roots.map((comment) => (
-        <div key={comment.id}>
-          <CommentWithReplies
-            comment={comment}
-            childrenMap={childrenMap}
-            depth={0}
-            onReply={handleReply}
-          />
-          {replyingTo === comment.id && (
-            <div className="ml-8 mt-2">
-              <CommentForm
-                onSubmit={handleSubmitReply}
-                placeholder="Write a reply..."
-                onCancel={() => setReplyingTo(null)}
-              />
-            </div>
-          )}
-        </div>
-      ))}
-
-      {/* Inline reply forms for nested comments */}
-      {replyingTo && !roots.find((r) => r.id === replyingTo) && (
-        <div className="ml-8 mt-2">
-          <CommentForm
-            onSubmit={handleSubmitReply}
-            placeholder="Write a reply..."
-            onCancel={() => setReplyingTo(null)}
-          />
-        </div>
-      )}
-
-      {/* New top-level comment */}
-      <div className="pt-4">
-        <CommentForm
-          onSubmit={(body) => onPostComment(body)}
-          placeholder="Add a comment..."
+        <CommentWithReplies
+          key={comment.id}
+          comment={comment}
+          childrenMap={childrenMap}
+          depth={0}
         />
-      </div>
+      ))}
     </div>
   )
 }

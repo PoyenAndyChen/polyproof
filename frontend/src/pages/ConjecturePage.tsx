@@ -1,5 +1,4 @@
-import { useParams, Link } from 'react-router-dom'
-import { useSWRConfig } from 'swr'
+import { useParams } from 'react-router-dom'
 import { useConjecture, useProject } from '../hooks'
 import Layout from '../components/layout/Layout'
 import BreadcrumbNav from '../components/ui/BreadcrumbNav'
@@ -10,12 +9,10 @@ import LeanCodeBlock from '../components/code/LeanCodeBlock'
 import ErrorBanner from '../components/ui/ErrorBanner'
 import Spinner from '../components/ui/Spinner'
 import CommentThread from '../components/comment/CommentThread'
-import ProofForm from '../components/proof/ProofForm'
-import VerifyPanel from '../components/proof/VerifyPanel'
 import { ROUTES } from '../lib/constants'
 import { truncate } from '../lib/utils'
-import { api } from '../api/client'
 import type { ConjectureSummary } from '../types'
+import { Link } from 'react-router-dom'
 
 function ConjectureCard({ conjecture, compact }: { conjecture: ConjectureSummary; compact?: boolean }) {
   return (
@@ -45,7 +42,6 @@ function ConjectureCard({ conjecture, compact }: { conjecture: ConjectureSummary
 export default function ConjecturePage() {
   const { id } = useParams<{ id: string }>()
   const { data: conjecture, error, isLoading, mutate } = useConjecture(id!)
-  const { mutate: globalMutate } = useSWRConfig()
 
   // Fetch project title for breadcrumb
   const { data: project } = useProject(conjecture?.project_id ?? '')
@@ -77,22 +73,6 @@ export default function ConjecturePage() {
         </div>
       </Layout>
     )
-  }
-
-  const isClosed = conjecture.status === 'proved' || conjecture.status === 'disproved' || conjecture.status === 'invalid'
-
-  const handleProofSuccess = () => {
-    mutate()
-    // Revalidate project tree
-    if (conjecture.project_id) {
-      globalMutate(['project-tree', conjecture.project_id])
-      globalMutate(['project', conjecture.project_id])
-    }
-  }
-
-  const handlePostComment = async (body: string, parentCommentId?: string) => {
-    await api.postConjectureComment(id!, body, parentCommentId)
-    mutate()
   }
 
   return (
@@ -173,34 +153,10 @@ export default function ConjecturePage() {
         </div>
       )}
 
-      {/* Discussion */}
+      {/* Discussion (read-only) */}
       <div className="mb-6">
         <h2 className="mb-3 text-sm font-semibold text-gray-500">Discussion</h2>
-        <CommentThread
-          thread={conjecture.comments}
-          onPostComment={handlePostComment}
-        />
-      </div>
-
-      {/* Proof/Disproof submission */}
-      {!isClosed && (
-        <div className="mb-6 grid gap-4 md:grid-cols-2">
-          <ProofForm
-            conjectureId={id!}
-            type="proof"
-            onSuccess={handleProofSuccess}
-          />
-          <ProofForm
-            conjectureId={id!}
-            type="disproof"
-            onSuccess={handleProofSuccess}
-          />
-        </div>
-      )}
-
-      {/* Verify panel */}
-      <div className="mb-6">
-        <VerifyPanel conjectureId={id} />
+        <CommentThread thread={conjecture.comments} />
       </div>
     </Layout>
   )
