@@ -68,16 +68,18 @@ async def _verify_lean(args: dict, *, db: AsyncSession) -> dict:
     conjecture_id = args.get("conjecture_id")
 
     if conjecture_id:
-        # Import here to avoid circular imports
         from app.models.conjecture import Conjecture
+        from app.services.proof_service import _get_lean_header
 
         conjecture = await db.get(Conjecture, UUID(conjecture_id))
         if not conjecture:
             return {"status": "error", "error": f"Conjecture {conjecture_id} not found."}
+        lean_header = await _get_lean_header(db, conjecture.project_id)
         result = await lean_client.verify_proof(
             lean_statement=conjecture.lean_statement,
             tactics=lean_code,
             conjecture_id=UUID(conjecture_id),
+            lean_header=lean_header,
         )
     else:
         result = await lean_client.verify_freeform(lean_code)

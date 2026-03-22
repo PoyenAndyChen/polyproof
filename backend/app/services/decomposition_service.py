@@ -89,7 +89,10 @@ async def update(
         }
 
     # Step 3: Verify sorry_proof compiles (sorry is allowed)
-    lean_result = await lean_client.verify_sorry_proof(sorry_proof)
+    from app.services.proof_service import _get_lean_header
+
+    lean_header = await _get_lean_header(db, parent.project_id)
+    lean_result = await lean_client.verify_sorry_proof(sorry_proof, lean_header=lean_header)
     if lean_result.status != "passed":
         return {
             "status": "error",

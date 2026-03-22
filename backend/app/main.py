@@ -1,9 +1,5 @@
 import logging
 from collections.abc import AsyncGenerator
-
-# Verbose logging for mega agent in development
-logging.basicConfig(level=logging.INFO)
-logging.getLogger("app.mega").setLevel(logging.DEBUG)
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, Request, Response
@@ -30,6 +26,8 @@ async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:
     """Application lifespan: start/stop the mega agent scheduler."""
     from app.mega.scheduler import start_scheduler, stop_scheduler
 
+    logging.basicConfig(level=logging.INFO)
+    logging.getLogger("app.mega").setLevel(logging.DEBUG)
     start_scheduler()
     logger.info("Mega agent scheduler started")
     yield

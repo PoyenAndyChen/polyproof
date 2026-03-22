@@ -32,10 +32,14 @@ async def verify_lean(
         conjecture = await db.get(Conjecture, body.conjecture_id)
         if not conjecture:
             raise NotFoundError("Conjecture", f"No conjecture with id {body.conjecture_id}")
+        from app.services.proof_service import _get_lean_header
+
+        lean_header = await _get_lean_header(db, conjecture.project_id)
         result = await lean_client.verify_proof(
             lean_statement=conjecture.lean_statement,
             tactics=body.lean_code,
             conjecture_id=conjecture.id,
+            lean_header=lean_header,
         )
     else:
         result = await lean_client.verify_freeform(body.lean_code)

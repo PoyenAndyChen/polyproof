@@ -2,12 +2,21 @@
 
 from uuid import UUID
 
+from sqlalchemy import select as sa_select
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.conjecture import Conjecture
+from app.models.project import Project
 from app.schemas.proof import DisproofResult, ProofResult
 from app.services import activity_service, assembly_service, lean_client
+
+
+async def _get_lean_header(db: AsyncSession, project_id: UUID) -> str | None:
+    """Look up the project's lean_header."""
+    result = await db.execute(sa_select(Project.lean_header).where(Project.id == project_id))
+    row = result.first()
+    return row[0] if row else None
 
 
 async def submit_proof(
@@ -60,10 +69,12 @@ async def submit_proof(
     was_decomposed = locked_row.status == "decomposed"
 
     # Step 4: Compile with locked signature
+    lean_header = await _get_lean_header(db, conjecture.project_id)
     result = await lean_client.verify_proof(
         lean_statement=conjecture.lean_statement,
         tactics=lean_code,
         conjecture_id=conjecture_id,
+        lean_header=lean_header,
     )
 
     # Step 5a: Lean rejected or timed out
@@ -207,10 +218,12 @@ async def submit_disproof(
     was_decomposed = locked_row.status == "decomposed"
 
     # Step 4: Compile with negated locked signature
+    lean_header = await _get_lean_header(db, conjecture.project_id)
     result = await lean_client.verify_disproof(
         lean_statement=conjecture.lean_statement,
         tactics=lean_code,
         conjecture_id=conjecture_id,
+        lean_header=lean_header,
     )
 
     # Step 5a: Lean rejected or timed out

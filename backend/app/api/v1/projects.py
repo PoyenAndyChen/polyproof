@@ -42,7 +42,9 @@ async def create_project(
     await _require_admin(request)
 
     # Typecheck root lean_statement via Lean
-    result = await lean_client.typecheck(body.root_conjecture.lean_statement)
+    result = await lean_client.typecheck(
+        body.root_conjecture.lean_statement, lean_header=body.lean_header
+    )
     if result.status != "passed":
         raise BadRequestError(
             f"Root conjecture Lean statement failed typecheck: {result.error or result.status}"
@@ -52,6 +54,7 @@ async def create_project(
         db,
         title=body.title,
         description=body.description,
+        lean_header=body.lean_header,
         root_lean_statement=body.root_conjecture.lean_statement,
         root_description=body.root_conjecture.description,
     )

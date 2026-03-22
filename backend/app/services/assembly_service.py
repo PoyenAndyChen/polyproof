@@ -127,7 +127,10 @@ async def check_and_assemble(conjecture_id: UUID, db: AsyncSession) -> bool:
         matched_children.append(matched_child.id)
 
     # Compile the assembled proof
-    result = await lean_client.verify_sorry_proof(assembled)
+    from app.services.proof_service import _get_lean_header
+
+    lean_header = await _get_lean_header(db, parent.project_id)
+    result = await lean_client.verify_sorry_proof(assembled, lean_header=lean_header)
 
     if result.status != "passed":
         await activity_service.record_event(

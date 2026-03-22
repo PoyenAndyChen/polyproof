@@ -14,6 +14,7 @@ class Project(Base):
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     title: Mapped[str] = mapped_column(String(200), nullable=False)
     description: Mapped[str] = mapped_column(Text, nullable=False)
+    lean_header: Mapped[str | None] = mapped_column(Text)
     root_conjecture_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("conjectures.id", deferrable=True, initially="DEFERRED"),
     )

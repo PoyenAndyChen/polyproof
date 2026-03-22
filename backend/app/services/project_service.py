@@ -18,13 +18,14 @@ async def create(
     description: str,
     root_lean_statement: str,
     root_description: str,
+    lean_header: str | None = None,
 ) -> tuple[Project, Conjecture]:
     """Create a project with its root conjecture.
 
     Lean typechecking must be done before calling this.
     Returns (project, root_conjecture).
     """
-    project = Project(title=title, description=description)
+    project = Project(title=title, description=description, lean_header=lean_header)
     db.add(project)
     await db.flush()
 

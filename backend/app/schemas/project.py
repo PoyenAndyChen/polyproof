@@ -14,6 +14,7 @@ class RootConjectureCreate(BaseModel):
 class ProjectCreate(BaseModel):
     title: str = Field(..., min_length=1, max_length=200)
     description: str = Field(..., min_length=1, max_length=10_000)
+    lean_header: str | None = Field(None, max_length=10_000)
     root_conjecture: RootConjectureCreate
 
 

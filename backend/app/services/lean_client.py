@@ -53,17 +53,23 @@ class LeanResult:
     messages: list[dict] | None = field(default=None)
 
 
-async def typecheck(lean_statement: str) -> LeanResult:
+async def typecheck(lean_statement: str, lean_header: str | None = None) -> LeanResult:
     """Typecheck a Lean statement (for project creation / conjecture validation).
 
     Wraps as ``theorem _polyproof_check : <statement> := by sorry`` and compiles.
     The sorry warning is intentionally ignored — it's our wrapper, not agent code.
     """
-    wrapped = f"import Mathlib\n\ntheorem _polyproof_check : {lean_statement} := by sorry"
+    header = _build_header(lean_header)
+    wrapped = f"{header}theorem _polyproof_check : {lean_statement} := by sorry"
     return await _send_to_lean(wrapped, allow_sorry=True)
 
 
-async def verify_proof(lean_statement: str, tactics: str, conjecture_id: UUID) -> LeanResult:
+async def verify_proof(
+    lean_statement: str,
+    tactics: str,
+    conjecture_id: UUID,
+    lean_header: str | None = None,
+) -> LeanResult:
     """Verify a proof against a conjecture's lean_statement.
 
     Constructs: ``theorem proof_<id> : <statement> := by <tactics>``
@@ -73,10 +79,11 @@ async def verify_proof(lean_statement: str, tactics: str, conjecture_id: UUID) -
     if rejected:
         return rejected
 
+    header = _build_header(lean_header)
     safe_id = str(conjecture_id).replace("-", "_")
     indented = "\n  ".join(tactics.splitlines())
     code = (
-        f"import Mathlib\n\n"
+        f"{header}"
         f"theorem proof_{safe_id} : {lean_statement} := by\n"
         f"  {indented}\n\n"
         f"#print axioms proof_{safe_id}\n"
@@ -88,21 +95,27 @@ async def verify_proof(lean_statement: str, tactics: str, conjecture_id: UUID) -
     return result
 
 
-async def verify_disproof(lean_statement: str, tactics: str, conjecture_id: UUID) -> LeanResult:
+async def verify_disproof(
+    lean_statement: str,
+    tactics: str,
+    conjecture_id: UUID,
+    lean_header: str | None = None,
+) -> LeanResult:
     r"""Verify a disproof against a conjecture's lean_statement.
 
-    Constructs: ``theorem disproof_<id> : \u00ac(<statement>) := by <tactics>``
+    Constructs: ``theorem disproof_<id> : ¬(<statement>) := by <tactics>``
     Then runs ``#print axioms`` to reject non-standard axioms.
     """
     rejected = _check_forbidden(tactics)
     if rejected:
         return rejected
 
+    header = _build_header(lean_header)
     safe_id = str(conjecture_id).replace("-", "_")
     indented = "\n  ".join(tactics.splitlines())
     code = (
-        f"import Mathlib\n\n"
-        f"theorem disproof_{safe_id} : \u00ac({lean_statement}) := by\n"
+        f"{header}"
+        f"theorem disproof_{safe_id} : ¬({lean_statement}) := by\n"
         f"  {indented}\n\n"
         f"#print axioms disproof_{safe_id}\n"
     )
@@ -113,11 +126,14 @@ async def verify_disproof(lean_statement: str, tactics: str, conjecture_id: UUID
     return result
 
 
-async def verify_sorry_proof(sorry_proof_code: str) -> LeanResult:
+async def verify_sorry_proof(sorry_proof_code: str, lean_header: str | None = None) -> LeanResult:
     """Compile a sorry-proof as-is (typechecks with sorry allowed).
 
     Used during decomposition to validate the sorry-proof structure.
+    The header is prepended if the sorry-proof doesn't already include imports.
     """
+    if lean_header and "import" not in sorry_proof_code[:50]:
+        sorry_proof_code = _build_header(lean_header) + sorry_proof_code
     return await _send_to_lean(sorry_proof_code, allow_sorry=True)
 
 
@@ -127,6 +143,15 @@ async def verify_freeform(code: str) -> LeanResult:
     Rejects sorry and forbidden keywords.
     """
     return await _send_to_lean(code, allow_sorry=False)
+
+
+def _build_header(lean_header: str | None) -> str:
+    """Build the Lean file header (import + optional project-level context)."""
+    parts = ["import Mathlib\n"]
+    if lean_header:
+        parts.append(lean_header.strip() + "\n")
+    parts.append("\n")
+    return "\n".join(parts)
 
 
 # ---------------------------------------------------------------------------

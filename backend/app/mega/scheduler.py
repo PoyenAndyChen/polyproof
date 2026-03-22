@@ -112,7 +112,7 @@ async def check_triggers(project_id: UUID) -> None:
             )
             return
 
-        # Trigger 3: periodic_heartbeat (24+ hours since last invocation, but only if there's activity)
+        # Trigger 3: periodic_heartbeat (24h+, only if unseen activity)
         hours_since = seconds_since / 3600
         if hours_since >= HEARTBEAT_HOURS and activity_count > 0:
             await _invoke_mega_agent(
