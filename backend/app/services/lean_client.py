@@ -69,15 +69,31 @@ async def verify_proof(
     tactics: str,
     conjecture_id: UUID,
     lean_header: str | None = None,
+    allow_sorry: bool = False,
 ) -> LeanResult:
     """Verify a proof against a conjecture's lean_statement.
 
     Constructs: ``theorem proof_<id> : <statement> := by <tactics>``
     Then runs ``#print axioms`` to reject non-standard axioms.
+
+    When allow_sorry=True (used by /verify), sorry is permitted for incremental
+    testing. Forbidden keyword checks still apply for everything except sorry.
     """
-    rejected = _check_forbidden(tactics)
-    if rejected:
-        return rejected
+    if allow_sorry:
+        # Check forbidden keywords except sorry
+        tactics_lower = tactics.lower()
+        for keyword in FORBIDDEN_KEYWORDS:
+            if keyword.lower() == "sorry":
+                continue
+            if keyword.lower() in tactics_lower:
+                return LeanResult(
+                    status="rejected",
+                    error=f"Proof uses forbidden construct: {keyword.strip()}",
+                )
+    else:
+        rejected = _check_forbidden(tactics)
+        if rejected:
+            return rejected
 
     header = _build_header(lean_header)
     safe_id = str(conjecture_id).replace("-", "_")
@@ -89,8 +105,8 @@ async def verify_proof(
         f"#print axioms proof_{safe_id}\n"
     )
 
-    result = await _send_to_lean(code, allow_sorry=False)
-    if result.status == "passed":
+    result = await _send_to_lean(code, allow_sorry=allow_sorry)
+    if result.status == "passed" and not allow_sorry:
         result = _check_axioms(result)
     return result
 

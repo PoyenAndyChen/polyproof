@@ -43,6 +43,14 @@ class ConjectureListResponse(BaseModel):
     total: int
 
 
+class ChildSummary(BaseModel):
+    """Minimal child info for the decomposed conjecture hint."""
+
+    id: UUID
+    status: str
+    description: str
+
+
 class ConjectureDetail(BaseModel):
     """Full conjecture context for detail page."""
 
@@ -64,5 +72,7 @@ class ConjectureDetail(BaseModel):
     proved_siblings: list[ConjectureSummary] = []
     children: list[ConjectureSummary] = []
     comments: CommentThread | None = None
+    hint: str | None = None
+    children_summary: list[ChildSummary] | None = None
 
     model_config = ConfigDict(from_attributes=True)

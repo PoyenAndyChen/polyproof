@@ -7,6 +7,7 @@ from sqlalchemy import func, select, text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.activity_log import ActivityLog
+from app.models.agent import Agent
 from app.models.comment import Comment
 from app.models.conjecture import Conjecture
 from app.models.project import Project
@@ -269,3 +270,103 @@ async def _get_active_agent_count(db: AsyncSession, project_id: UUID) -> int:
         )
     )
     return result or 0
+
+
+async def get_overview(db: AsyncSession, project: Project) -> dict:
+    """Build the project overview: project summary + flat tree with per-node metrics.
+
+    Each node includes: description, status, priority, comment_count,
+    last_activity_at, proved_by (agent handle), parent_id, summary (latest is_summary comment body).
+    """
+    stats = await _compute_progress(db, project.root_conjecture_id)
+    root_status = await _get_root_status(db, project.root_conjecture_id)
+
+    project_data = {
+        "id": project.id,
+        "title": project.title,
+        "description": project.description,
+        "status": root_status or "open",
+        "progress": stats["progress"],
+    }
+
+    if not project.root_conjecture_id:
+        return {"project": project_data, "tree": []}
+
+    # Fetch all conjectures in the tree (including invalid, for visibility)
+    tree_query = text("""
+        WITH RECURSIVE tree AS (
+            SELECT id, parent_id, description, status, priority, proved_by, created_at
+            FROM conjectures WHERE id = :root_id
+            UNION ALL
+            SELECT c.id, c.parent_id, c.description, c.status, c.priority, c.proved_by, c.created_at
+            FROM conjectures c JOIN tree t ON c.parent_id = t.id
+        )
+        SELECT * FROM tree
+    """)
+    result = await db.execute(tree_query, {"root_id": str(project.root_conjecture_id)})
+    rows = result.all()
+
+    conjecture_ids = [row.id for row in rows]
+
+    # Batch: comment counts
+    comment_counts: dict[UUID, int] = {}
+    if conjecture_ids:
+        cc_result = await db.execute(
+            select(Comment.conjecture_id, func.count())
+            .where(Comment.conjecture_id.in_(conjecture_ids))
+            .group_by(Comment.conjecture_id)
+        )
+        comment_counts = dict(cc_result.all())
+
+    # Batch: last activity per conjecture (from activity_log)
+    last_activities: dict[UUID, datetime] = {}
+    if conjecture_ids:
+        la_result = await db.execute(
+            select(ActivityLog.conjecture_id, func.max(ActivityLog.created_at))
+            .where(ActivityLog.conjecture_id.in_(conjecture_ids))
+            .group_by(ActivityLog.conjecture_id)
+        )
+        last_activities = dict(la_result.all())
+
+    # Batch: latest is_summary comment body per conjecture
+    summaries: dict[UUID, str] = {}
+    if conjecture_ids:
+        # Use a lateral join / window function to get latest summary per conjecture
+        summary_query = text("""
+            SELECT DISTINCT ON (conjecture_id)
+                conjecture_id, body
+            FROM comments
+            WHERE conjecture_id = ANY(:ids) AND is_summary = true
+            ORDER BY conjecture_id, created_at DESC
+        """)
+        s_result = await db.execute(summary_query, {"ids": conjecture_ids})
+        for s_row in s_result.all():
+            summaries[s_row.conjecture_id] = s_row.body
+
+    # Batch: proved_by agent handles
+    proved_by_ids = {row.proved_by for row in rows if row.proved_by is not None}
+    agent_handles: dict[UUID, str] = {}
+    if proved_by_ids:
+        agents_result = await db.execute(
+            select(Agent.id, Agent.handle).where(Agent.id.in_(proved_by_ids))
+        )
+        agent_handles = dict(agents_result.all())
+
+    # Build flat tree
+    tree_nodes = []
+    for row in rows:
+        tree_nodes.append(
+            {
+                "id": row.id,
+                "description": row.description,
+                "status": row.status,
+                "priority": row.priority,
+                "comment_count": comment_counts.get(row.id, 0),
+                "last_activity_at": last_activities.get(row.id),
+                "proved_by": agent_handles.get(row.proved_by) if row.proved_by else None,
+                "parent_id": row.parent_id,
+                "summary": summaries.get(row.id),
+            }
+        )
+
+    return {"project": project_data, "tree": tree_nodes}

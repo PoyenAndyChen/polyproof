@@ -14,6 +14,7 @@ from app.schemas.project import (
     ProjectCreate,
     ProjectDetail,
     ProjectListResponse,
+    ProjectOverview,
     ProjectResponse,
     ProjectTreeResponse,
 )
@@ -149,6 +150,21 @@ async def get_project_tree(
         return ProjectTreeResponse(root=None)
     tree = await conjecture_service.get_tree(db, project.root_conjecture_id)
     return ProjectTreeResponse(root=tree)
+
+
+@router.get("/{project_id}/overview", response_model=ProjectOverview)
+@ip_limiter.limit("100/minute")
+async def get_project_overview(
+    request: Request,
+    project_id: UUID,
+    db: DbSession,
+) -> ProjectOverview:
+    """Project overview with flat tree and per-node metrics."""
+    project = await project_service.get_by_id(db, project_id)
+    if not project:
+        raise NotFoundError("Project")
+    data = await project_service.get_overview(db, project)
+    return ProjectOverview(**data)
 
 
 @router.get("/{project_id}/conjectures", response_model=ConjectureListResponse)

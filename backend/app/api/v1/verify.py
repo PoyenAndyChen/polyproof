@@ -22,8 +22,8 @@ async def verify_lean(
 ) -> VerifyResult:
     """Private Lean check. Nothing is stored.
 
-    With conjecture_id: wraps lean_code with the conjecture's locked signature
-    (same as proof submission). Rejects sorry.
+    With conjecture_id: wraps lean_code with the conjecture's locked signature.
+    Sorry is allowed for incremental testing against the locked signature.
 
     Without conjecture_id: compiles lean_code as-is via verify_freeform.
     Rejects sorry.
@@ -40,6 +40,7 @@ async def verify_lean(
             tactics=body.lean_code,
             conjecture_id=conjecture.id,
             lean_header=lean_header,
+            allow_sorry=True,
         )
     else:
         result = await lean_client.verify_freeform(body.lean_code)

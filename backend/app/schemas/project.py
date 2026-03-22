@@ -77,3 +77,28 @@ class ProjectTreeNode(BaseModel):
 
 class ProjectTreeResponse(BaseModel):
     root: ProjectTreeNode | None = None
+
+
+class OverviewProject(BaseModel):
+    id: UUID
+    title: str
+    description: str
+    status: str
+    progress: float
+
+
+class OverviewNode(BaseModel):
+    id: UUID
+    description: str
+    status: str
+    priority: str
+    comment_count: int = 0
+    last_activity_at: datetime | None = None
+    proved_by: str | None = None
+    parent_id: UUID | None = None
+    summary: str | None = None
+
+
+class ProjectOverview(BaseModel):
+    project: OverviewProject
+    tree: list[OverviewNode]

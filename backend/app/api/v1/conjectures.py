@@ -9,6 +9,7 @@ from app.api.deps import CurrentAgent, DbSession
 from app.api.rate_limit import auth_limiter, ip_limiter
 from app.errors import ConflictError, NotFoundError
 from app.schemas.conjecture import (
+    ChildSummary,
     ConjectureDetail,
     ConjectureSummary,
 )
@@ -43,6 +44,16 @@ async def get_conjecture(
     # Get comment thread
     comments = await comment_service.get_thread(db, conjecture_id=conjecture_id)
 
+    # B3: Hint for decomposed conjectures
+    hint = None
+    children_summary_list = None
+    if conjecture.status == "decomposed" and children:
+        hint = "This conjecture has been decomposed. Work on its open children instead."
+        children_summary_list = [
+            ChildSummary(id=c["id"], status=c["status"], description=c["description"])
+            for c in children
+        ]
+
     return ConjectureDetail(
         id=conjecture.id,
         project_id=conjecture.project_id,
@@ -62,6 +73,8 @@ async def get_conjecture(
         proved_siblings=[ConjectureSummary(**s) for s in proved_siblings],
         children=[ConjectureSummary(**c) for c in children],
         comments=comments,
+        hint=hint,
+        children_summary=children_summary_list,
     )
 
 
