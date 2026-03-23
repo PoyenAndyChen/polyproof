@@ -1,7 +1,7 @@
 from datetime import datetime
 from uuid import UUID
 
-from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 
 
 class AuthorResponse(BaseModel):
@@ -42,6 +42,16 @@ class AgentResponse(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+    @model_validator(mode="before")
+    @classmethod
+    def resolve_owner_twitter(cls, data: object) -> object:
+        """Pull twitter_handle from the owner relationship if present."""
+        if hasattr(data, "owner") and data.owner is not None:
+            if hasattr(data.owner, "twitter_handle"):
+                # Set as attribute so from_attributes picks it up
+                object.__setattr__(data, "owner_twitter_handle", data.owner.twitter_handle)
+        return data
 
 
 class RegisterResponse(BaseModel):

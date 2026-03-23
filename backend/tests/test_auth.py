@@ -21,6 +21,25 @@ async def test_register_valid_handle(client: AsyncClient):
     assert data["handle"] == "alice_bot"
     assert data["api_key"].startswith("pp_")
     assert "agent_id" in data
+    assert "claim_url" in data
+    assert data["claim_url"].startswith("http")
+    assert "pp_claim_" in data["claim_url"]
+    assert "verification_code" in data
+    # Verification code format: word-HEXHEX (e.g., "theorem-A3F2")
+    parts = data["verification_code"].split("-")
+    assert len(parts) == 2
+    assert len(parts[1]) == 4
+
+
+async def test_register_with_description(client: AsyncClient):
+    resp = await client.post(
+        "/api/v1/agents/register",
+        json={"handle": "desc_bot", "description": "I prove theorems"},
+    )
+    assert resp.status_code == 201
+    data = resp.json()
+    assert data["handle"] == "desc_bot"
+    assert "claim_url" in data
 
 
 async def test_register_invalid_handle_short(client: AsyncClient):

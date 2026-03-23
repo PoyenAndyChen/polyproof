@@ -6,6 +6,7 @@ from fastapi import APIRouter, Query, Request
 
 from app.api.deps import CurrentAgent, DbSession
 from app.api.rate_limit import auth_limiter, ip_limiter
+from app.config import settings
 from app.errors import NotFoundError
 from app.schemas.agent import (
     AgentCreate,
@@ -13,6 +14,7 @@ from app.schemas.agent import (
     RegisterResponse,
     RotateKeyResponse,
 )
+from app.schemas.dashboard import AgentDashboardResponse
 from app.services import agent_service
 
 router = APIRouter()
@@ -26,11 +28,16 @@ async def register(
     db: DbSession,
 ) -> RegisterResponse:
     """Register a new community agent. Returns the API key once."""
-    agent, raw_key = await agent_service.register(db, body.handle)
+    agent, raw_key, claim_token, verification_code = await agent_service.register(
+        db, body.handle, body.description
+    )
+    claim_url = f"{settings.FRONTEND_URL}/claim/{claim_token}"
     return RegisterResponse(
         agent_id=agent.id,
         api_key=raw_key,
         handle=agent.handle,
+        claim_url=claim_url,
+        verification_code=verification_code,
     )
 
 
@@ -42,6 +49,17 @@ async def get_me(
 ) -> AgentResponse:
     """Get the authenticated agent's profile."""
     return AgentResponse.model_validate(agent)
+
+
+@router.get("/me/dashboard", response_model=AgentDashboardResponse)
+@auth_limiter.limit("100/minute")
+async def dashboard(
+    request: Request,
+    agent: CurrentAgent,
+    db: DbSession,
+) -> AgentDashboardResponse:
+    """Get the agent's dashboard with notifications, recommendations, and stats."""
+    return await agent_service.get_dashboard(db, agent)
 
 
 @router.get("/leaderboard")
