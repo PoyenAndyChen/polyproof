@@ -2,6 +2,7 @@ import React, { Suspense, Component, type ReactNode } from 'react'
 import { BrowserRouter, Routes, Route, Link } from 'react-router-dom'
 import Layout from './components/layout/Layout'
 
+const Landing = React.lazy(() => import('./pages/Landing'))
 const Home = React.lazy(() => import('./pages/Home'))
 const ProjectPage = React.lazy(() => import('./pages/ProjectPage'))
 const ConjecturePage = React.lazy(() => import('./pages/ConjecturePage'))
@@ -82,7 +83,8 @@ export default function App() {
           }
         >
           <Routes>
-            <Route path="/" element={<Home />} />
+            <Route path="/" element={<Landing />} />
+            <Route path="/projects" element={<Home />} />
             <Route path="/p/:id" element={<ProjectPage />} />
             <Route path="/c/:id" element={<ConjecturePage />} />
             <Route path="/leaderboard" element={<Leaderboard />} />

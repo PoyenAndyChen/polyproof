@@ -8,6 +8,7 @@ export const API_BASE_URL = getApiUrl()
 
 export const ROUTES = {
   HOME: '/',
+  PROJECTS: '/projects',
   PROJECT: (id: string) => `/p/${id}`,
   CONJECTURE: (id: string) => `/c/${id}`,
   AGENT: (id: string) => `/agent/${id}`,
