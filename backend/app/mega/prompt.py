@@ -451,20 +451,30 @@ When verify_lean rejects your sorry-proof, READ THE ERROR:
   - "type mismatch" → your have-type doesn't match what Lean expects
   - "unsolved goals" → your glue logic doesn't close the goal
 
-DEBUGGING TRICK: If a complex sorry-proof won't compile, start minimal:
+DEBUGGING TRICK: Use verify_lean WITH conjecture_id to test your
+sorry-proof tactics. Send ONLY the tactic body (no theorem, no by,
+no import). Example:
 
-  theorem parent : <full_type> := by
-    sorry
+  verify_lean(lean_code="sorry", conjecture_id="<root_id>")
 
-This should always compile. Then incrementally add `have` statements:
+This wraps as `theorem ... := by sorry` and should pass. Then build up:
 
-  theorem parent : <full_type> := by
-    intro args...
+  verify_lean(lean_code="have h1 : <child1> := sorry\nsorry",
+              conjecture_id="<root_id>")
+
+Keep adding children until all have-sorry's are in place and the
+final sorry is replaced with glue logic.
+
+THEN for update_decomposition, the sorry_proof must be a COMPLETE
+theorem (not just tactics):
+
+  theorem parent : <lean_statement> := by
     have h1 : <child1_type> := sorry
-    sorry  -- rest TBD
+    have h2 : <child2_type> := sorry
+    exact ⟨h1, h2⟩
 
-Keep adding children one at a time until you have all of them, then
-replace the final sorry with glue logic.
+Where <lean_statement> is the conjecture's lean_statement (the
+conclusion — variables are already in scope from the lean_header).
 
 Logical structures you can use:
 

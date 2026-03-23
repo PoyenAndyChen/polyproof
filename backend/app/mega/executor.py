@@ -33,7 +33,7 @@ async def execute_tool(
     """
     try:
         if tool_name == "verify_lean":
-            return await _verify_lean(arguments, db=db)
+            return await _verify_lean(arguments, db=db, project_id=project_id)
         elif tool_name == "update_decomposition":
             return await _update_decomposition(arguments, db=db, mega_agent_id=mega_agent_id)
         elif tool_name == "revert_decomposition":
@@ -62,8 +62,10 @@ async def execute_tool(
         }
 
 
-async def _verify_lean(args: dict, *, db: AsyncSession) -> dict:
+async def _verify_lean(args: dict, *, db: AsyncSession, project_id: UUID) -> dict:
     """Verify Lean code privately. Nothing stored."""
+    from app.services.proof_service import _get_lean_header
+
     lean_code = args["lean_code"]
     conjecture_id = args.get("conjecture_id")
 
@@ -73,7 +75,6 @@ async def _verify_lean(args: dict, *, db: AsyncSession) -> dict:
 
     if conjecture_id:
         from app.models.conjecture import Conjecture
-        from app.services.proof_service import _get_lean_header
 
         conjecture = await db.get(Conjecture, UUID(conjecture_id))
         if not conjecture:
@@ -88,7 +89,9 @@ async def _verify_lean(args: dict, *, db: AsyncSession) -> dict:
         )
     else:
         if allow_sorry:
-            result = await lean_client.verify_sorry_proof(lean_code)
+            # Include the problem's lean_header so imports/variables are available
+            lean_header = await _get_lean_header(db, project_id)
+            result = await lean_client.verify_sorry_proof(lean_code, lean_header=lean_header)
         else:
             result = await lean_client.verify_freeform(lean_code)
 
