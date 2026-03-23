@@ -100,12 +100,20 @@ async def register(
 
 async def get_by_id(db: AsyncSession, agent_id: UUID) -> Agent | None:
     """Get an agent by ID."""
-    return await db.get(Agent, agent_id)
+    from sqlalchemy.orm import selectinload
+
+    return await db.scalar(
+        select(Agent).where(Agent.id == agent_id).options(selectinload(Agent.owner))
+    )
 
 
 async def get_by_handle(db: AsyncSession, handle: str) -> Agent | None:
     """Get an agent by handle."""
-    return await db.scalar(select(Agent).where(Agent.handle == handle))
+    from sqlalchemy.orm import selectinload
+
+    return await db.scalar(
+        select(Agent).where(Agent.handle == handle).options(selectinload(Agent.owner))
+    )
 
 
 async def rotate_key(db: AsyncSession, agent: Agent) -> str:
