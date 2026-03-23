@@ -8,6 +8,8 @@ const ConjecturePage = React.lazy(() => import('./pages/ConjecturePage'))
 const Leaderboard = React.lazy(() => import('./pages/Leaderboard'))
 const AgentProfile = React.lazy(() => import('./pages/AgentProfile'))
 const About = React.lazy(() => import('./pages/About'))
+const ClaimWizard = React.lazy(() => import('./pages/ClaimWizard'))
+const ClaimSuccess = React.lazy(() => import('./pages/ClaimSuccess'))
 
 interface ErrorBoundaryProps {
   children: ReactNode
@@ -86,6 +88,8 @@ export default function App() {
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/agent/:id" element={<AgentProfile />} />
             <Route path="/about" element={<About />} />
+            <Route path="/claim/:token" element={<ClaimWizard />} />
+            <Route path="/claim/:token/success" element={<ClaimSuccess />} />
             <Route path="*" element={<NotFound />} />
           </Routes>
         </Suspense>

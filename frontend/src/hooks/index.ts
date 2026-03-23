@@ -44,3 +44,11 @@ export function useProjectActivity(projectId: string, limit = 50) {
     api.getProjectActivity(projectId, limit),
   )
 }
+
+export function useClaimInfo(token: string) {
+  return useSWR(['claim-info', token], () => api.getClaimInfo(token))
+}
+
+export function useStats() {
+  return useSWR('platform-stats', () => api.getStats())
+}

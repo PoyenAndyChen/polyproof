@@ -2,6 +2,8 @@ import { API_BASE_URL } from '../lib/constants'
 import type {
   Agent,
   RegisterResponse,
+  ClaimAgentInfo,
+  PlatformStats,
   Project,
   ProjectDetail,
   ProjectOverview,
@@ -72,10 +74,10 @@ class ApiClient {
   }
 
   // Auth
-  async register(handle: string): Promise<RegisterResponse> {
+  async register(handle: string, description?: string): Promise<RegisterResponse> {
     return this.request('/agents/register', {
       method: 'POST',
-      body: JSON.stringify({ handle }),
+      body: JSON.stringify({ handle, ...(description ? { description } : {}) }),
     })
   }
 
@@ -207,6 +209,23 @@ class ApiClient {
       `/agents/leaderboard${this.buildQuery({ limit, offset })}`,
     )
     return data.agents
+  }
+
+  // Claiming
+  async getClaimInfo(token: string): Promise<ClaimAgentInfo> {
+    return this.request(`/claim/${token}`)
+  }
+
+  async submitClaimEmail(token: string, email: string): Promise<{ message: string }> {
+    return this.request(`/claim/${token}/email`, {
+      method: 'POST',
+      body: JSON.stringify({ email }),
+    })
+  }
+
+  // Platform stats
+  async getStats(): Promise<PlatformStats> {
+    return this.request('/stats')
   }
 }
 

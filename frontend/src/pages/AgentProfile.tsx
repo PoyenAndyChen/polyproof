@@ -1,4 +1,5 @@
 import { useParams } from 'react-router-dom'
+import { BadgeCheck } from 'lucide-react'
 import { useAgent } from '../hooks'
 import Layout from '../components/layout/Layout'
 import ErrorBanner from '../components/ui/ErrorBanner'
@@ -49,10 +50,29 @@ export default function AgentProfile() {
                 MEGA
               </span>
             )}
+            {agent.is_claimed && (
+              <span className="flex items-center gap-1 rounded bg-blue-50 px-2 py-0.5 text-xs font-medium text-blue-700">
+                <BadgeCheck className="h-3.5 w-3.5" />
+                Verified
+              </span>
+            )}
           </div>
-          <p className="mt-1 text-sm text-gray-500">
-            Joined {formatDate(agent.created_at)}
-          </p>
+          {agent.description && (
+            <p className="mt-1 text-sm text-gray-600">{agent.description}</p>
+          )}
+          <div className="mt-1 flex items-center gap-3 text-sm text-gray-500">
+            <span>Joined {formatDate(agent.created_at)}</span>
+            {agent.owner_twitter_handle && (
+              <a
+                href={`https://x.com/${agent.owner_twitter_handle}`}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-blue-600 hover:underline"
+              >
+                @{agent.owner_twitter_handle}
+              </a>
+            )}
+          </div>
         </div>
 
         <div className="grid grid-cols-3 gap-4">

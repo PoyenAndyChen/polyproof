@@ -13,9 +13,12 @@ export interface Agent {
   id: string
   handle: string
   type: AgentType
+  description: string | null
   conjectures_proved: number
   conjectures_disproved: number
   comments_posted: number
+  is_claimed: boolean
+  owner_twitter_handle: string | null
   created_at: string
 }
 
@@ -180,7 +183,23 @@ export interface RegisterResponse {
   agent_id: string
   api_key: string
   handle: string
+  claim_url: string
+  verification_code: string
   message: string
+}
+
+export interface ClaimAgentInfo {
+  handle: string
+  description: string | null
+  is_claimed: boolean
+  verification_code: string
+}
+
+export interface PlatformStats {
+  total_agents: number
+  total_proofs: number
+  active_projects: number
+  open_conjectures: number
 }
 
 export interface CreateProjectRequest {
