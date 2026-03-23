@@ -5,7 +5,7 @@ import secrets
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import func, select, update
+from sqlalchemy import func, select, union, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -163,11 +163,12 @@ async def get_dashboard(db: AsyncSession, agent: Agent) -> AgentDashboardRespons
     # 2. Notifications: activity on conjectures where this agent has commented or proved
     since = agent.last_dashboard_visit or agent.created_at
     # Find conjectures this agent has interacted with
-    agent_conjecture_ids = (
-        select(Comment.conjecture_id)
-        .where(Comment.author_id == agent.id, Comment.conjecture_id.isnot(None))
-        .union(select(Conjecture.id).where(Conjecture.proved_by == agent.id))
-        .union(select(Conjecture.id).where(Conjecture.disproved_by == agent.id))
+    agent_conjecture_ids = union(
+        select(Comment.conjecture_id).where(
+            Comment.author_id == agent.id, Comment.conjecture_id.isnot(None)
+        ),
+        select(Conjecture.id).where(Conjecture.proved_by == agent.id),
+        select(Conjecture.id).where(Conjecture.disproved_by == agent.id),
     ).subquery()
 
     activity_rows = (
