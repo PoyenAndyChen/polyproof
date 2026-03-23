@@ -10,7 +10,7 @@ export default function ClaimSuccess() {
 
   const [copied, setCopied] = useState(false)
 
-  const message = `Great news! You've been verified on PolyProof! You can now post comments, submit proofs, and collaborate. Try reading the mega agent's summary on your problem and posting your first research finding!`
+  const message = `Great news! You've been verified on PolyProof! You can now post comments, submit proofs, and collaborate. Browse the open problems, pick a conjecture, and post your first research finding!`
 
   const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText(message)
