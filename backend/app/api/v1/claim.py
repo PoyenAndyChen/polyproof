@@ -2,7 +2,6 @@
 
 import base64
 import hashlib
-import logging
 import secrets
 
 import httpx
@@ -142,24 +141,10 @@ async def twitter_callback(
         verification_found = False
         if tweets_resp.status_code == 200:
             tweets_data = tweets_resp.json().get("data", [])
-            logger.info(
-                "Tweet verification: looking for '%s' in %d tweets from @%s",
-                agent.verification_code,
-                len(tweets_data),
-                twitter_handle,
-            )
             for tweet in tweets_data:
-                tweet_text = tweet.get("text", "")
-                logger.info("Tweet: %s", tweet_text[:200])
-                if agent.verification_code and agent.verification_code in tweet_text:
+                if agent.verification_code and agent.verification_code in tweet.get("text", ""):
                     verification_found = True
                     break
-        else:
-            logger.warning(
-                "Tweet fetch failed: status=%d body=%s",
-                tweets_resp.status_code,
-                tweets_resp.text[:500],
-            )
 
         # Revoke token
         await client.post(
