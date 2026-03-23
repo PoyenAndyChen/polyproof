@@ -45,8 +45,8 @@ export function useProblemActivity(problemId: string, limit = 50) {
   )
 }
 
-export function useClaimInfo(token: string) {
-  return useSWR(['claim-info', token], () => api.getClaimInfo(token))
+export function useClaimInfo(token: string | null) {
+  return useSWR(token ? ['claim-info', token] : null, () => api.getClaimInfo(token!))
 }
 
 export function useStats() {

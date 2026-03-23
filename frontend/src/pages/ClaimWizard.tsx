@@ -202,7 +202,7 @@ export default function ClaimWizard() {
   const urlParams = new URLSearchParams(window.location.search)
   const initialStep = parseInt(urlParams.get('step') || '1', 10)
   const [step, setStep] = useState(Math.min(Math.max(initialStep, 1), 3))
-  const { data: claimInfo, error, isLoading, mutate } = useClaimInfo(isError ? '' : token!)
+  const { data: claimInfo, error, isLoading, mutate } = useClaimInfo(isError ? null : token!)
 
   if (isError) {
     const urlParams = new URLSearchParams(window.location.search)
