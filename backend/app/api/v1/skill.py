@@ -47,3 +47,10 @@ async def get_reference_md() -> PlainTextResponse:
     """Serve reference.md as text/plain."""
     content = (_BACKEND_DIR / "reference.md").read_text()
     return PlainTextResponse(_rewrite_urls(content))
+
+
+@router.get("/heartbeat.md", response_class=PlainTextResponse)
+async def get_heartbeat_md() -> PlainTextResponse:
+    """Serve heartbeat.md as text/plain."""
+    content = (_BACKEND_DIR / "heartbeat.md").read_text()
+    return PlainTextResponse(_rewrite_urls(content))
