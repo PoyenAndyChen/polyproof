@@ -87,14 +87,27 @@ async def process_fill_job(db: AsyncSession, job: Job) -> dict:
         return await _fail_job(db, job, "Sorry not found after lock")
 
     tracked_file = await db.get(TrackedFile, sorry.file_id)
-    import_path = tracked_file.file_path if tracked_file else None
+    if not tracked_file:
+        return await _fail_job(db, job, "Tracked file not found for sorry")
 
-    # Step 4: Compile via Lean server
-    result = await lean_client.verify_fill(
-        goal_state=sorry.goal_state,
+    # Step 4: Fetch source file and compile by patching the sorry
+    project = await db.get(Project, job.project_id)
+    if not project:
+        return await _fail_job(db, job, "Project not found")
+
+    try:
+        repo = github_service.parse_repo(project.fork_repo)
+        file_content, file_sha = await github_service.get_file_content(
+            repo, tracked_file.file_path, project.fork_branch
+        )
+    except github_service.GitHubError as e:
+        return await _fail_job(db, job, f"Could not fetch source file: {e}")
+
+    result = await lean_client.verify_in_file(
+        file_content=file_content,
+        declaration_name=sorry.declaration_name,
         tactics=job.tactics,
-        sorry_id=sorry_id,
-        import_path=import_path,
+        allow_sorry=False,
     )
 
     # Step 5: Handle compilation result
@@ -102,7 +115,7 @@ async def process_fill_job(db: AsyncSession, job: Job) -> dict:
         return await _fail_job(db, job, result.error or "Compilation failed", result.messages)
 
     if result.status == "timeout":
-        return await _fail_job(db, job, result.error or "Compilation timed out (60s limit)")
+        return await _fail_job(db, job, result.error or "Compilation timed out")
 
     # Step 6/7: Compilation passed
     # Check if the tactics introduced new sorry's (decomposition)
@@ -195,48 +208,46 @@ async def process_fill_job(db: AsyncSession, job: Job) -> dict:
 
     # Commit the fill to the GitHub fork (best-effort — fill is recorded regardless)
     # Sequential job processing per project guarantees no SHA conflicts.
-    if settings.GITHUB_PAT and tracked_file:
+    if settings.GITHUB_PAT and tracked_file and project:
         try:
-            project = await db.get(Project, job.project_id)
-            if project:
-                repo = github_service.parse_repo(project.fork_repo)
-                file_content, file_sha = await github_service.get_file_content(
-                    repo, tracked_file.file_path, project.fork_branch
+            repo = github_service.parse_repo(project.fork_repo)
+            file_content, file_sha = await github_service.get_file_content(
+                repo, tracked_file.file_path, project.fork_branch
+            )
+            new_content = github_service.replace_sorry_in_declaration(
+                file_content, sorry.declaration_name, job.tactics
+            )
+            agent_handle = None
+            if job.agent_id:
+                agent_row = await db.execute(
+                    text("SELECT handle FROM agents WHERE id = :id"),
+                    {"id": str(job.agent_id)},
                 )
-                new_content = github_service.replace_sorry_in_declaration(
-                    file_content, sorry.declaration_name, job.tactics
-                )
-                agent_handle = None
-                if job.agent_id:
-                    agent_row = await db.execute(
-                        text("SELECT handle FROM agents WHERE id = :id"),
-                        {"id": str(job.agent_id)},
-                    )
-                    row = agent_row.first()
-                    agent_handle = row.handle if row else None
+                row = agent_row.first()
+                agent_handle = row.handle if row else None
 
-                commit_msg = (
-                    f"fill: {sorry.declaration_name}\n\n"
-                    f"{job.description or 'sorry filled'}\n\n"
-                    f"Agent: @{agent_handle or 'unknown'}"
-                )
-                new_sha = await github_service.commit_file(
-                    repo,
-                    tracked_file.file_path,
-                    new_content,
-                    commit_msg,
-                    project.fork_branch,
-                    file_sha,
-                    author_name=agent_handle or "PolyProof",
-                    author_email="noreply@polyproof.org",
-                )
-                await db.execute(
-                    text("UPDATE projects SET current_commit = :sha WHERE id = :id"),
-                    {"sha": new_sha, "id": str(project.id)},
-                )
-                logger.info(
-                    "Committed fill for %s -> %s", sorry.declaration_name, new_sha[:8]
-                )
+            commit_msg = (
+                f"fill: {sorry.declaration_name}\n\n"
+                f"{job.description or 'sorry filled'}\n\n"
+                f"Agent: @{agent_handle or 'unknown'}"
+            )
+            new_sha = await github_service.commit_file(
+                repo,
+                tracked_file.file_path,
+                new_content,
+                commit_msg,
+                project.fork_branch,
+                file_sha,
+                author_name=agent_handle or "PolyProof",
+                author_email="noreply@polyproof.org",
+            )
+            await db.execute(
+                text("UPDATE projects SET current_commit = :sha WHERE id = :id"),
+                {"sha": new_sha, "id": str(project.id)},
+            )
+            logger.info(
+                "Committed fill for %s -> %s", sorry.declaration_name, new_sha[:8]
+            )
         except Exception:
             logger.exception(
                 "GitHub commit failed for sorry %s (fill still recorded)", sorry_id

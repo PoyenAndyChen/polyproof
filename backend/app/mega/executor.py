@@ -57,10 +57,12 @@ async def execute_tool(
 
 
 async def _verify_lean(args: dict, *, db: AsyncSession) -> dict:
-    """Verify tactics against a sorry's context. Sorry IS allowed."""
+    """Verify tactics by patching the actual source file. Sorry IS allowed."""
+    from app.models.project import Project
     from app.models.sorry import Sorry
     from app.models.tracked_file import TrackedFile
-    from app.services.lean_client import verify_fill
+    from app.services import github_service
+    from app.services.lean_client import verify_in_file
 
     sorry_id = UUID(args["sorry_id"])
     tactics = args["tactics"]
@@ -70,25 +72,67 @@ async def _verify_lean(args: dict, *, db: AsyncSession) -> dict:
         return {"status": "error", "error": f"Sorry {sorry_id} not found."}
 
     tracked_file = await db.get(TrackedFile, sorry.file_id)
-    import_path = tracked_file.file_path if tracked_file else None
+    if not tracked_file:
+        return {"status": "error", "error": "Tracked file not found."}
 
-    result = await verify_fill(
-        goal_state=sorry.goal_state,
+    project = await db.get(Project, sorry.project_id)
+    if not project:
+        return {"status": "error", "error": "Project not found."}
+
+    try:
+        repo = github_service.parse_repo(project.fork_repo)
+        file_content, _sha = await github_service.get_file_content(
+            repo, tracked_file.file_path, project.fork_branch
+        )
+    except github_service.GitHubError as e:
+        return {"status": "error", "error": f"Could not fetch source file: {e}"}
+
+    result = await verify_in_file(
+        file_content=file_content,
+        declaration_name=sorry.declaration_name,
         tactics=tactics,
-        sorry_id=sorry.id,
         allow_sorry=True,
-        import_path=import_path,
     )
-    return {"status": result.status, "error": result.error}
+    return {
+        "status": result.status,
+        "error": result.error,
+        "messages": result.messages,
+    }
 
 
 async def _verify_freeform(args: dict, *, db: AsyncSession) -> dict:
     """Verify freeform Lean code in a project context."""
+    from sqlalchemy import select
+
+    from app.models.tracked_file import TrackedFile
     from app.services.lean_client import verify_freeform
 
+    project_id = args.get("project_id")
     code = args["code"]
-    result = await verify_freeform(code)
-    return {"status": result.status, "error": result.error}
+
+    # Find default import path from the project's first tracked file
+    import_path = None
+    if project_id:
+        try:
+            first_file = (
+                await db.scalars(
+                    select(TrackedFile)
+                    .where(TrackedFile.project_id == UUID(project_id))
+                    .order_by(TrackedFile.file_path.asc())
+                    .limit(1)
+                )
+            ).first()
+            if first_file:
+                import_path = first_file.file_path
+        except Exception:
+            pass
+
+    result = await verify_freeform(code, import_path=import_path)
+    return {
+        "status": result.status,
+        "error": result.error,
+        "messages": result.messages,
+    }
 
 
 async def _fill_sorry(args: dict, *, db: AsyncSession, mega_agent_id: UUID) -> dict:

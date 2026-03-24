@@ -167,7 +167,7 @@ def mock_lean_pass(monkeypatch):
         return LeanResult(status="passed", error=None)
 
     monkeypatch.setattr("app.services.lean_client.typecheck", _mock, raising=False)
-    monkeypatch.setattr("app.services.lean_client.verify_fill", _mock, raising=False)
+    monkeypatch.setattr("app.services.lean_client.verify_in_file", _mock, raising=False)
     monkeypatch.setattr("app.services.lean_client.verify_freeform", _mock, raising=False)
 
 
@@ -179,5 +179,5 @@ def mock_lean_fail(monkeypatch):
         return LeanResult(status="rejected", error="type mismatch")
 
     monkeypatch.setattr("app.services.lean_client.typecheck", _mock, raising=False)
-    monkeypatch.setattr("app.services.lean_client.verify_fill", _mock, raising=False)
+    monkeypatch.setattr("app.services.lean_client.verify_in_file", _mock, raising=False)
     monkeypatch.setattr("app.services.lean_client.verify_freeform", _mock, raising=False)

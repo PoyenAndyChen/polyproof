@@ -1,14 +1,19 @@
 """Lean verification endpoints: sorry-scoped and freeform."""
 
+import logging
+
 from fastapi import APIRouter, Request
 
 from app.api.deps import CurrentAgent, DbSession
 from app.api.rate_limit import auth_limiter
 from app.errors import NotFoundError
+from app.models.project import Project
 from app.models.sorry import Sorry
 from app.models.tracked_file import TrackedFile
 from app.schemas.verify import FreeformVerifyRequest, VerifyRequest, VerifyResult
-from app.services import lean_client, project_service
+from app.services import github_service, lean_client, project_service
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter()
 
@@ -21,39 +26,56 @@ async def verify_lean(
     _agent: CurrentAgent,
     db: DbSession,
 ) -> VerifyResult:
-    """Verify tactics against a sorry (sync, sorry allowed).
+    """Verify tactics against a sorry by patching the actual source file.
 
-    Requires sorry_id. Wraps tactics with the sorry's goal_state in a locked
-    signature and compiles via Lean CI.
+    Compiles the full file with the sorry replaced by the agent's tactics.
+    Sorry IS allowed (agent is iterating, not submitting a final fill).
     """
-    if body.sorry_id is not None:
-        sorry = await db.get(Sorry, body.sorry_id)
-        if not sorry:
-            raise NotFoundError("Sorry", f"No sorry with id {body.sorry_id}")
-
-        tracked_file = await db.get(TrackedFile, sorry.file_id)
-        import_path = tracked_file.file_path if tracked_file else None
-
-        result = await lean_client.verify_fill(
-            goal_state=sorry.goal_state,
-            tactics=body.tactics,
-            sorry_id=sorry.id,
-            allow_sorry=True,
-            import_path=import_path,
-        )
-
+    if body.sorry_id is None:
         return VerifyResult(
-            status=result.status,
-            error=result.error,
-            sorry_status=sorry.status,
-            would_be_decomposition="sorry" in body.tactics.lower() and result.status == "passed",
+            status="rejected",
+            error="sorry_id is required. Use /verify/freeform for exploration.",
         )
-    else:
-        result = await lean_client.verify_freeform(body.tactics)
+
+    sorry = await db.get(Sorry, body.sorry_id)
+    if not sorry:
+        raise NotFoundError("Sorry", f"No sorry with id {body.sorry_id}")
+
+    tracked_file = await db.get(TrackedFile, sorry.file_id)
+    if not tracked_file:
+        raise NotFoundError("File", "Tracked file not found for this sorry")
+
+    project = await db.get(Project, sorry.project_id)
+    if not project:
+        raise NotFoundError("Project")
+
+    # Fetch the source file from GitHub
+    try:
+        repo = github_service.parse_repo(project.fork_repo)
+        file_content, _sha = await github_service.get_file_content(
+            repo, tracked_file.file_path, project.fork_branch
+        )
+    except github_service.GitHubError as e:
         return VerifyResult(
-            status=result.status,
-            error=result.error,
+            status="rejected",
+            error=f"Could not fetch source file: {e}",
         )
+
+    # Compile by patching the sorry in the actual file
+    result = await lean_client.verify_in_file(
+        file_content=file_content,
+        declaration_name=sorry.declaration_name,
+        tactics=body.tactics,
+        allow_sorry=True,
+    )
+
+    return VerifyResult(
+        status=result.status,
+        error=result.error,
+        sorry_status=sorry.status,
+        would_be_decomposition="sorry" in body.tactics.lower() and result.status == "passed",
+        messages=result.messages,
+    )
 
 
 @router.post("/freeform", response_model=VerifyResult)
@@ -66,15 +88,30 @@ async def verify_freeform(
 ) -> VerifyResult:
     """Verify arbitrary Lean code in project context (exploration, sync).
 
-    Requires project_id for context (toolchain, imports, etc.).
+    Prepends the project's import if the code doesn't start with 'import'.
+    Returns Lean messages (info, warning) so agents can see #check/#print output.
     """
     project = await project_service.get_by_id(db, body.project_id)
     if not project:
         raise NotFoundError("Project", f"No project with id {body.project_id}")
 
-    result = await lean_client.verify_freeform(body.code)
+    # Use the first tracked file's path as the default import context
+    from sqlalchemy import select
+
+    first_file = (
+        await db.scalars(
+            select(TrackedFile)
+            .where(TrackedFile.project_id == project.id)
+            .order_by(TrackedFile.file_path.asc())
+            .limit(1)
+        )
+    ).first()
+    import_path = first_file.file_path if first_file else None
+
+    result = await lean_client.verify_freeform(body.code, import_path=import_path)
 
     return VerifyResult(
         status=result.status,
         error=result.error,
+        messages=result.messages,
     )

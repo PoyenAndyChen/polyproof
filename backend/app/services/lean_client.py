@@ -1,24 +1,26 @@
 """HTTP client for the Kimina Lean Server.
 
 v5 entry points:
-- typecheck(goal_state, import_path)      — wrap with sorry, validate goal is well-typed
-- verify_fill(goal_state, tactics, sorry_id, import_path) — locked fill signature
-- verify_freeform(code, import_path)      — compile as-is, reject sorry
+- verify_in_file(file_content, declaration_name, tactics) — compile by patching the source file
+- verify_freeform(code, import_path)                      — compile as-is for exploration
+- typecheck(goal_state, import_path)                      — wrap with sorry, validate goal
 """
 
 from dataclasses import dataclass, field
-from uuid import UUID, uuid4
+from uuid import uuid4
 
 import httpx
 
 from app.config import settings
 
-_TIMEOUT = 120.0  # HTTP timeout (Kimina has its own internal timeout too)
-_LEAN_TIMEOUT = 60  # Lean compilation timeout sent to Kimina
+_TIMEOUT = 120.0  # HTTP timeout for short compilations
+_FILE_TIMEOUT = 360.0  # HTTP timeout for full-file compilation
+_LEAN_TIMEOUT = 60  # Lean compilation timeout for short code
+_FILE_LEAN_TIMEOUT = 300  # Lean compilation timeout for full files
 
-# Forbidden keywords for fill/proof submissions (tactics that get committed).
-FORBIDDEN_KEYWORDS = [
-    "sorry",
+# Forbidden keywords for fill tactics (code that gets committed).
+# Sorry is checked separately via axiom analysis, not keyword scan.
+FILL_FORBIDDEN_KEYWORDS = [
     "axiom ",
     "axiom\n",
     "axiom\t",
@@ -70,6 +72,52 @@ class LeanResult:
     messages: list[dict] | None = field(default=None)
 
 
+async def verify_in_file(
+    file_content: str,
+    declaration_name: str,
+    tactics: str,
+    allow_sorry: bool = False,
+) -> LeanResult:
+    """Verify tactics by patching them into the actual source file.
+
+    This is the primary verification path. It replaces the sorry in the
+    declaration with the agent's tactics, then compiles the full file.
+    The surrounding code provides all the context (imports, variables,
+    namespaces, typeclasses) that the sorry originally had.
+
+    When allow_sorry=False (fill submissions), appends ``#print axioms``
+    and rejects if the filled declaration depends on ``sorryAx``.
+    """
+    from app.services.github_service import GitHubError, replace_sorry_in_declaration
+
+    # Check forbidden keywords on the tactics only (not the full file)
+    rejected = _check_keywords(tactics, FILL_FORBIDDEN_KEYWORDS)
+    if rejected:
+        return rejected
+
+    # Patch the sorry with the agent's tactics
+    try:
+        patched = replace_sorry_in_declaration(file_content, declaration_name, tactics)
+    except GitHubError as e:
+        return LeanResult(status="rejected", error=str(e))
+
+    # For fill submissions, append axiom check on the specific declaration
+    if not allow_sorry:
+        patched += f"\n#print axioms {declaration_name}\n"
+
+    # Compile the full patched file — allow_sorry=True because other
+    # declarations in the file still have sorry's (that's normal)
+    result = await _send_to_lean(
+        patched, allow_sorry=True, timeout=_FILE_LEAN_TIMEOUT
+    )
+
+    # For fill submissions, check that THIS declaration doesn't use sorryAx
+    if result.status == "passed" and not allow_sorry:
+        result = _check_axioms(result)
+
+    return result
+
+
 async def typecheck(
     goal_state: str,
     import_path: str | None = None,
@@ -77,58 +125,10 @@ async def typecheck(
     """Typecheck a goal state (for sorry validation).
 
     Wraps as ``theorem _polyproof_check : <goal_state> := by sorry`` and compiles.
-    The sorry warning is intentionally ignored -- it's our wrapper, not agent code.
     """
     header = _build_header(import_path=import_path)
     wrapped = f"{header}theorem _polyproof_check : {goal_state} := by sorry"
     return await _send_to_lean(wrapped, allow_sorry=True)
-
-
-async def verify_fill(
-    goal_state: str,
-    tactics: str,
-    sorry_id: UUID,
-    allow_sorry: bool = False,
-    import_path: str | None = None,
-) -> LeanResult:
-    """Verify a fill against a sorry's goal state.
-
-    Constructs: ``theorem fill_<id> : <goal_state> := by <tactics>``
-    Then runs ``#print axioms`` to reject non-standard axioms.
-
-    When allow_sorry=True (used by /verify), sorry is permitted for incremental
-    testing. Forbidden keyword checks still apply for everything except sorry.
-    """
-    if allow_sorry:
-        # Check forbidden keywords except sorry
-        tactics_lower = tactics.lower()
-        for keyword in FORBIDDEN_KEYWORDS:
-            if keyword.lower() == "sorry":
-                continue
-            if keyword.lower() in tactics_lower:
-                return LeanResult(
-                    status="rejected",
-                    error=f"Tactics use forbidden construct: {keyword.strip()}",
-                )
-    else:
-        rejected = _check_forbidden(tactics)
-        if rejected:
-            return rejected
-
-    header = _build_header(import_path=import_path)
-    safe_id = str(sorry_id).replace("-", "_")
-    indented = "\n  ".join(tactics.splitlines())
-    code = (
-        f"{header}"
-        f"theorem fill_{safe_id} : {goal_state} := by\n"
-        f"  {indented}\n\n"
-        f"#print axioms fill_{safe_id}\n"
-    )
-
-    result = await _send_to_lean(code, allow_sorry=allow_sorry)
-    if result.status == "passed" and not allow_sorry:
-        result = _check_axioms(result)
-    return result
 
 
 async def verify_freeform(
@@ -144,10 +144,9 @@ async def verify_freeform(
     if rejected:
         return rejected
 
-    if import_path is not None:
+    if import_path is not None and "import" not in code[:50]:
         header = _build_header(import_path=import_path)
-        if "import" not in code[:50]:
-            code = header + code
+        code = header + code
     return await _send_to_lean(code, allow_sorry=True)
 
 
@@ -169,11 +168,6 @@ def _build_header(*, import_path: str | None = None) -> str:
 # ---------------------------------------------------------------------------
 
 
-def _check_forbidden(tactics: str) -> LeanResult | None:
-    """Scan agent tactics for forbidden constructs. Returns LeanResult on rejection."""
-    return _check_keywords(tactics, FORBIDDEN_KEYWORDS)
-
-
 def _check_freeform_forbidden(code: str) -> LeanResult | None:
     """Scan freeform code for dangerous constructs (allows #check, #eval, sorry)."""
     return _check_keywords(code, FREEFORM_FORBIDDEN_KEYWORDS)
@@ -181,9 +175,9 @@ def _check_freeform_forbidden(code: str) -> LeanResult | None:
 
 def _check_keywords(code: str, keywords: list[str]) -> LeanResult | None:
     """Scan code against a keyword list. Returns LeanResult on rejection."""
-    tactics_lower = code.lower()
+    code_lower = code.lower()
     for keyword in keywords:
-        if keyword.lower() in tactics_lower:
+        if keyword.lower() in code_lower:
             return LeanResult(
                 status="rejected",
                 error=f"Tactics use forbidden construct: {keyword.strip()}",
@@ -245,22 +239,17 @@ async def _send_to_lean(
 
     Kimina API:
       POST /verify
-      {"codes": [{"custom_id": "...", "proof": "..."}], "timeout": 60}
-
-    Response has two error paths:
-      1. Top-level "error" field: timeout/crash (error is a string)
-      2. response.messages with severity "error": compilation failure
-
-    If allow_sorry is False, also rejects code that uses sorry.
+      {"codes": [{"custom_id": "...", "proof": "..."}], "timeout": N}
     """
     request_id = uuid4().hex[:12]
+    http_timeout = _FILE_TIMEOUT if timeout > _LEAN_TIMEOUT else _TIMEOUT
 
     try:
         headers: dict[str, str] = {}
         if settings.LEAN_SERVER_SECRET:
             headers["X-Lean-Secret"] = settings.LEAN_SERVER_SECRET
 
-        async with httpx.AsyncClient(timeout=_TIMEOUT) as client:
+        async with httpx.AsyncClient(timeout=http_timeout) as client:
             response = await client.post(
                 f"{settings.LEAN_SERVER_URL}/verify",
                 headers=headers,
@@ -308,12 +297,13 @@ async def _send_to_lean(
                     messages=messages,
                 )
 
-            # Path 3: Reject code that uses 'sorry' (unless allowed for typechecking)
+            # Path 3: Reject code that uses 'sorry' (unless allowed)
             if not allow_sorry:
                 sorry_warnings = [
                     msg.get("data", "")
                     for msg in messages
-                    if msg.get("severity") == "warning" and "sorry" in msg.get("data", "").lower()
+                    if msg.get("severity") == "warning"
+                    and "sorry" in msg.get("data", "").lower()
                 ]
                 if sorry_warnings:
                     return LeanResult(
@@ -326,6 +316,10 @@ async def _send_to_lean(
             return LeanResult(status="passed", messages=messages)
 
     except httpx.TimeoutException:
-        return LeanResult(status="timeout", error="Compilation timed out (60s limit).")
+        return LeanResult(
+            status="timeout", error=f"Compilation timed out ({timeout}s limit)."
+        )
     except httpx.HTTPError as e:
-        return LeanResult(status="timeout", error=f"Failed to connect to Lean server: {e}")
+        return LeanResult(
+            status="timeout", error=f"Failed to connect to Lean server: {e}"
+        )
