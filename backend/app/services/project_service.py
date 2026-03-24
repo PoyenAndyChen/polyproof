@@ -281,10 +281,6 @@ async def import_sorries(
 
     Creates TrackedFile records as needed.  Returns counts.
     """
-    project = await db.get(Project, project_id)
-    if not project:
-        return {"status": "error", "error": "Project not found"}
-
     # Build file_path -> TrackedFile mapping (create if needed)
     file_paths = {s["file_path"] for s in sorries}
     existing = (

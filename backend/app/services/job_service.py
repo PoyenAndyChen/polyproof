@@ -92,7 +92,6 @@ async def process_fill_job(db: AsyncSession, job: Job) -> dict:
         goal_state=sorry.goal_state,
         tactics=job.tactics,
         sorry_id=sorry_id,
-        project_id=job.project_id,
         import_path=import_path,
     )
 

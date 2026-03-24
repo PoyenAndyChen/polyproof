@@ -59,6 +59,7 @@ async def execute_tool(
 async def _verify_lean(args: dict, *, db: AsyncSession) -> dict:
     """Verify tactics against a sorry's context. Sorry IS allowed."""
     from app.models.sorry import Sorry
+    from app.models.tracked_file import TrackedFile
     from app.services.lean_client import verify_fill
 
     sorry_id = UUID(args["sorry_id"])
@@ -68,12 +69,15 @@ async def _verify_lean(args: dict, *, db: AsyncSession) -> dict:
     if not sorry:
         return {"status": "error", "error": f"Sorry {sorry_id} not found."}
 
+    tracked_file = await db.get(TrackedFile, sorry.file_id)
+    import_path = tracked_file.file_path if tracked_file else None
+
     result = await verify_fill(
         goal_state=sorry.goal_state,
         tactics=tactics,
         sorry_id=sorry.id,
-        project_id=sorry.project_id,
         allow_sorry=True,
+        import_path=import_path,
     )
     return {"status": result.status, "error": result.error}
 
@@ -82,10 +86,8 @@ async def _verify_freeform(args: dict, *, db: AsyncSession) -> dict:
     """Verify freeform Lean code in a project context."""
     from app.services.lean_client import verify_freeform
 
-    project_id = UUID(args["project_id"])
     code = args["code"]
-
-    result = await verify_freeform(code, project_id=project_id)
+    result = await verify_freeform(code)
     return {"status": result.status, "error": result.error}
 
 

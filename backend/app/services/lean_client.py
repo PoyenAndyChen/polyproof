@@ -1,9 +1,9 @@
 """HTTP client for the Kimina Lean Server.
 
 v5 entry points:
-- typecheck(goal_state, project_id)      — wrap with sorry, validate goal is well-typed
-- verify_fill(goal_state, tactics, sorry_id, project_id) — locked fill signature
-- verify_freeform(code, project_id)      — compile as-is, reject sorry
+- typecheck(goal_state, import_path)      — wrap with sorry, validate goal is well-typed
+- verify_fill(goal_state, tactics, sorry_id, import_path) — locked fill signature
+- verify_freeform(code, import_path)      — compile as-is, reject sorry
 """
 
 from dataclasses import dataclass, field
@@ -53,14 +53,14 @@ class LeanResult:
 
 async def typecheck(
     goal_state: str,
-    project_id: UUID | None = None,
+    import_path: str | None = None,
 ) -> LeanResult:
     """Typecheck a goal state (for sorry validation).
 
     Wraps as ``theorem _polyproof_check : <goal_state> := by sorry`` and compiles.
     The sorry warning is intentionally ignored -- it's our wrapper, not agent code.
     """
-    header = _build_header(project_id)
+    header = _build_header(import_path=import_path)
     wrapped = f"{header}theorem _polyproof_check : {goal_state} := by sorry"
     return await _send_to_lean(wrapped, allow_sorry=True)
 
@@ -69,7 +69,6 @@ async def verify_fill(
     goal_state: str,
     tactics: str,
     sorry_id: UUID,
-    project_id: UUID | None = None,
     allow_sorry: bool = False,
     import_path: str | None = None,
 ) -> LeanResult:
@@ -97,7 +96,7 @@ async def verify_fill(
         if rejected:
             return rejected
 
-    header = _build_header(project_id, import_path=import_path)
+    header = _build_header(import_path=import_path)
     safe_id = str(sorry_id).replace("-", "_")
     indented = "\n  ".join(tactics.splitlines())
     code = (
@@ -115,21 +114,20 @@ async def verify_fill(
 
 async def verify_freeform(
     code: str,
-    project_id: UUID | None = None,
     import_path: str | None = None,
 ) -> LeanResult:
     """Compile code as-is for the /verify endpoint (freeform).
 
     Rejects sorry and forbidden keywords.
     """
-    if project_id is not None:
-        header = _build_header(project_id, import_path=import_path)
+    if import_path is not None:
+        header = _build_header(import_path=import_path)
         if "import" not in code[:50]:
             code = header + code
     return await _send_to_lean(code, allow_sorry=False)
 
 
-def _build_header(project_id: UUID | None = None, *, import_path: str | None = None) -> str:
+def _build_header(*, import_path: str | None = None) -> str:
     """Build the Lean file header from the file path.
 
     Converts a file path like ``Carleson/Foo/Bar.lean`` into

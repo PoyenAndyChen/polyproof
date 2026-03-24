@@ -1,6 +1,6 @@
 """Project CRUD, sorries listing, tree, activity, and overview endpoints."""
 
-from typing import Any
+from typing import Any, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, HTTPException, Query, Request
@@ -26,14 +26,14 @@ router = APIRouter()
 
 
 class SorryImport(BaseModel):
-    file_path: str = Field(min_length=1)
+    file_path: str = Field(min_length=1, pattern=r"^[A-Za-z0-9_/.\-]+\.lean$")
     declaration_name: str = Field(min_length=1)
     sorry_index: int = 0
     goal_state: str = Field(min_length=1)
     local_context: str | None = None
     line: int | None = None
     col: int | None = None
-    priority: str = "normal"
+    priority: Literal["critical", "high", "normal", "low"] = "normal"
 
 
 async def _require_admin(request: Request) -> None:

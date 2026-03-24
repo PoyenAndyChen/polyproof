@@ -38,7 +38,6 @@ async def verify_lean(
             goal_state=sorry.goal_state,
             tactics=body.tactics,
             sorry_id=sorry.id,
-            project_id=sorry.project_id,
             allow_sorry=True,
             import_path=import_path,
         )
@@ -73,7 +72,7 @@ async def verify_freeform(
     if not project:
         raise NotFoundError("Project", f"No project with id {body.project_id}")
 
-    result = await lean_client.verify_freeform(body.code, project_id=project.id)
+    result = await lean_client.verify_freeform(body.code)
 
     return VerifyResult(
         status=result.status,
