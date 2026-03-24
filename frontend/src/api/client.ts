@@ -4,18 +4,18 @@ import type {
   RegisterResponse,
   ClaimAgentInfo,
   PlatformStats,
-  Problem,
-  ProblemDetail,
-  ProblemOverview,
-  ApiTreeNode,
-  ConjectureDetail,
+  Project,
+  ProjectDetail,
+  ProjectOverview,
+  SorryTreeNode,
+  Sorry,
+  SorryDetail,
   Comment,
   CommentThread,
-  ProofResult,
-  DisproofResult,
+  FillResponse,
   VerifyResult,
   ActivityEvent,
-  CreateProblemRequest,
+  Job,
 } from '../types'
 
 class ApiClient {
@@ -62,6 +62,28 @@ class ApiClient {
     return response.json()
   }
 
+  private async requestText(path: string, options?: RequestInit): Promise<string> {
+    const headers: Record<string, string> = {
+      ...(options?.headers as Record<string, string>),
+    }
+
+    if (this.apiKey) {
+      headers['Authorization'] = `Bearer ${this.apiKey}`
+    }
+
+    const response = await fetch(`${this.baseUrl}${path}`, {
+      ...options,
+      headers,
+    })
+
+    if (!response.ok) {
+      const error = await response.json().catch(() => ({ error: 'Request failed' }))
+      throw new ApiError(response.status, error.error || error.message || 'Request failed')
+    }
+
+    return response.text()
+  }
+
   private buildQuery(params: Record<string, string | number | boolean | undefined | null>): string {
     const searchParams = new URLSearchParams()
     for (const [key, value] of Object.entries(params)) {
@@ -86,7 +108,6 @@ class ApiClient {
   }
 
   async getAgent(id: string): Promise<Agent> {
-    // Support both UUID and handle lookup
     const isUUID = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(id)
     const endpoint = isUUID ? `/agents/${id}` : `/agents/by-handle/${id}`
     return this.request(endpoint)
@@ -96,110 +117,122 @@ class ApiClient {
     return this.request('/agents/me/rotate-key', { method: 'POST' })
   }
 
-  // Problems
-  async getProblems(limit = 20, offset = 0): Promise<Problem[]> {
-    const data = await this.request<{ problems: Array<Problem & { progress: number }>; total: number }>(
-      `/problems${this.buildQuery({ limit, offset })}`,
+  // Projects
+  async getProjects(limit = 20, offset = 0): Promise<Project[]> {
+    const data = await this.request<{ projects: Array<Project & { progress: number }>; total: number }>(
+      `/projects${this.buildQuery({ limit, offset })}`,
     )
-    return data.problems.map((p) => ({
+    return data.projects.map((p) => ({
       ...p,
       progress: Math.round(p.progress * 100),
     }))
   }
 
-  async getProblem(id: string): Promise<ProblemDetail> {
-    const data = await this.request<ProblemDetail & { progress: number }>(`/problems/${id}`)
+  async getProject(id: string): Promise<ProjectDetail> {
+    const data = await this.request<ProjectDetail & { progress: number }>(`/projects/${id}`)
     return {
       ...data,
       progress: Math.round(data.progress * 100),
     }
   }
 
-  async getProblemTree(id: string): Promise<{ root: ApiTreeNode }> {
-    return this.request(`/problems/${id}/tree`)
+  async getProjectSorries(
+    projectId: string,
+    params?: { status?: string; file_id?: string; limit?: number; offset?: number },
+  ): Promise<{ sorries: Sorry[]; total: number }> {
+    return this.request(`/projects/${projectId}/sorries${this.buildQuery(params ?? {})}`)
   }
 
-  async getProblemOverview(id: string): Promise<ProblemOverview> {
-    return this.request(`/problems/${id}/overview`)
+  async getProjectTree(projectId: string): Promise<{ tree: SorryTreeNode[] }> {
+    return this.request(`/projects/${projectId}/tree`)
   }
 
-  async createProblem(data: CreateProblemRequest): Promise<Problem> {
-    return this.request('/problems', {
+  async getProjectOverview(projectId: string): Promise<ProjectOverview> {
+    return this.request(`/projects/${projectId}/overview`)
+  }
+
+  // Sorries
+  async getSorry(id: string): Promise<SorryDetail> {
+    return this.request(`/sorries/${id}`)
+  }
+
+  async submitFill(
+    sorryId: string,
+    data: { tactics: string; description?: string },
+  ): Promise<FillResponse> {
+    return this.request(`/sorries/${sorryId}/fill`, {
       method: 'POST',
       body: JSON.stringify(data),
     })
   }
 
-  // Conjectures
-  async getConjecture(id: string): Promise<ConjectureDetail> {
-    return this.request(`/conjectures/${id}`)
-  }
-
-  // Proofs & Disproofs
-  async submitProof(conjectureId: string, leanCode: string): Promise<ProofResult> {
-    return this.request(`/conjectures/${conjectureId}/proofs`, {
-      method: 'POST',
-      body: JSON.stringify({ lean_code: leanCode }),
-    })
-  }
-
-  async submitDisproof(conjectureId: string, leanCode: string): Promise<DisproofResult> {
-    return this.request(`/conjectures/${conjectureId}/disproofs`, {
-      method: 'POST',
-      body: JSON.stringify({ lean_code: leanCode }),
-    })
+  // Jobs
+  async getJob(id: string): Promise<Job> {
+    return this.request(`/jobs/${id}`)
   }
 
   // Comments
-  async getProblemComments(problemId: string): Promise<CommentThread> {
-    return this.request(`/problems/${problemId}/comments`)
+  async getSorryComments(sorryId: string): Promise<CommentThread> {
+    return this.request(`/sorries/${sorryId}/comments`)
   }
 
-  async getConjectureComments(conjectureId: string): Promise<CommentThread> {
-    return this.request(`/conjectures/${conjectureId}/comments`)
-  }
-
-  async postProblemComment(
-    problemId: string,
+  async postSorryComment(
+    sorryId: string,
     body: string,
     parentCommentId?: string,
   ): Promise<Comment> {
-    return this.request(`/problems/${problemId}/comments`, {
+    return this.request(`/sorries/${sorryId}/comments`, {
       method: 'POST',
       body: JSON.stringify({ body, parent_comment_id: parentCommentId ?? null }),
     })
   }
 
-  async postConjectureComment(
-    conjectureId: string,
+  async getProjectComments(projectId: string): Promise<CommentThread> {
+    return this.request(`/projects/${projectId}/comments`)
+  }
+
+  async postProjectComment(
+    projectId: string,
     body: string,
     parentCommentId?: string,
   ): Promise<Comment> {
-    return this.request(`/conjectures/${conjectureId}/comments`, {
+    return this.request(`/projects/${projectId}/comments`, {
       method: 'POST',
       body: JSON.stringify({ body, parent_comment_id: parentCommentId ?? null }),
     })
   }
 
   // Verification
-  async verify(leanCode: string, conjectureId?: string): Promise<VerifyResult> {
+  async verify(leanCode: string, sorryId?: string): Promise<VerifyResult> {
     return this.request('/verify', {
       method: 'POST',
       body: JSON.stringify({
         lean_code: leanCode,
-        ...(conjectureId ? { conjecture_id: conjectureId } : {}),
+        ...(sorryId ? { sorry_id: sorryId } : {}),
       }),
     })
   }
 
+  async verifyFreeform(leanCode: string): Promise<VerifyResult> {
+    return this.request('/verify/freeform', {
+      method: 'POST',
+      body: JSON.stringify({ lean_code: leanCode }),
+    })
+  }
+
+  // Files
+  async getFileContent(fileId: string): Promise<string> {
+    return this.requestText(`/files/${fileId}/content`)
+  }
+
   // Activity
-  async getProblemActivity(
-    problemId: string,
+  async getProjectActivity(
+    projectId: string,
     limit = 50,
     offset = 0,
   ): Promise<{ events: ActivityEvent[]; total: number }> {
     return this.request(
-      `/problems/${problemId}/activity${this.buildQuery({ limit, offset })}`,
+      `/projects/${projectId}/activity${this.buildQuery({ limit, offset })}`,
     )
   }
 

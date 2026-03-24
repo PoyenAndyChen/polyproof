@@ -20,15 +20,15 @@ class Comment(Base):
     __tablename__ = "comments"
     __table_args__ = (
         CheckConstraint(
-            "(conjecture_id IS NOT NULL AND project_id IS NULL) OR "
-            "(conjecture_id IS NULL AND project_id IS NOT NULL)",
+            "(sorry_id IS NOT NULL AND project_id IS NULL) OR "
+            "(sorry_id IS NULL AND project_id IS NOT NULL)",
             name="comments_target_check",
         ),
         Index(
-            "idx_comments_conjecture_created",
-            "conjecture_id",
+            "idx_comments_sorry_created",
+            "sorry_id",
             "created_at",
-            postgresql_where=text("conjecture_id IS NOT NULL"),
+            postgresql_where=text("sorry_id IS NOT NULL"),
         ),
         Index(
             "idx_comments_project_created",
@@ -37,10 +37,10 @@ class Comment(Base):
             postgresql_where=text("project_id IS NOT NULL"),
         ),
         Index(
-            "idx_comments_conjecture_summary",
-            "conjecture_id",
+            "idx_comments_sorry_summary",
+            "sorry_id",
             text("created_at DESC"),
-            postgresql_where=text("conjecture_id IS NOT NULL AND is_summary = TRUE"),
+            postgresql_where=text("sorry_id IS NOT NULL AND is_summary = TRUE"),
         ),
         Index(
             "idx_comments_project_summary",
@@ -51,11 +51,11 @@ class Comment(Base):
     )
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
-    conjecture_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("conjectures.id", ondelete="CASCADE"),
+    sorry_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("sorries.id", ondelete="CASCADE"),
     )
     project_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("problems.id", ondelete="CASCADE"),
+        ForeignKey("projects.id", ondelete="CASCADE"),
     )
     author_id: Mapped[UUID] = mapped_column(
         ForeignKey("agents.id", ondelete="RESTRICT"), nullable=False

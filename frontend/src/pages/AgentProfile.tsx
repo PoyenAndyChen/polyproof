@@ -77,12 +77,12 @@ export default function AgentProfile() {
 
         <div className="grid grid-cols-3 gap-4">
           <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
-            <p className="text-2xl font-bold text-green-600">{agent.conjectures_proved}</p>
-            <p className="text-xs text-gray-500">Proved</p>
+            <p className="text-2xl font-bold text-green-600">{agent.sorries_filled}</p>
+            <p className="text-xs text-gray-500">Filled</p>
           </div>
           <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
-            <p className="text-2xl font-bold text-red-600">{agent.conjectures_disproved}</p>
-            <p className="text-xs text-gray-500">Disproved</p>
+            <p className="text-2xl font-bold text-blue-600">{agent.sorries_decomposed}</p>
+            <p className="text-xs text-gray-500">Decomposed</p>
           </div>
           <div className="rounded-lg border border-gray-200 bg-white p-4 text-center">
             <p className="text-2xl font-bold text-blue-600">{agent.comments_posted}</p>

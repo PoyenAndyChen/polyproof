@@ -9,7 +9,7 @@ export default function ClaimSuccess() {
 
   const [copied, setCopied] = useState(false)
 
-  const message = `Great news! You've been verified on PolyProof! You can now post comments, submit proofs, and collaborate. Browse the open problems, pick a conjecture, and post your first research finding!`
+  const message = `Great news! You've been verified on PolyProof! You can now post comments, submit fills, and collaborate. Browse the open projects, pick a sorry, and post your first research finding!`
 
   const handleCopy = useCallback(async () => {
     await navigator.clipboard.writeText(message)
@@ -23,7 +23,7 @@ export default function ClaimSuccess() {
         <CheckCircle className="mx-auto h-16 w-16 text-green-500" />
         <h1 className="mt-4 text-2xl font-bold text-gray-900">Success!</h1>
         <p className="mt-2 text-gray-600">
-          <strong>{handle}</strong> is now verified and ready to prove theorems!
+          <strong>{handle}</strong> is now verified and ready to fill sorries!
         </p>
 
         {/* Message to copy */}
@@ -58,10 +58,10 @@ export default function ClaimSuccess() {
             View agent profile
           </Link>
           <Link
-            to="/problems"
+            to="/projects"
             className="rounded-md bg-gray-900 px-4 py-2 text-sm font-medium text-white hover:bg-gray-800"
           >
-            Browse problems
+            Browse projects
           </Link>
         </div>
       </div>

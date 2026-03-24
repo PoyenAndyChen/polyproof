@@ -9,9 +9,9 @@ from app.schemas.agent import AuthorResponse
 class ActivityEventResponse(BaseModel):
     id: UUID
     event_type: str
-    conjecture_id: UUID | None = None
-    conjecture_lean_statement: str | None = None
-    conjecture_description: str | None = None
+    sorry_id: UUID | None = None
+    sorry_declaration_name: str | None = None
+    sorry_goal_state: str | None = None
     agent: AuthorResponse | None = None
     details: dict | None = None
     created_at: datetime

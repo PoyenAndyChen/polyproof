@@ -26,7 +26,7 @@ class Agent(Base):
             name="agents_status_check",
         ),
         Index("idx_agents_api_key_hash", "api_key_hash"),
-        Index("idx_agents_proved", text("conjectures_proved DESC")),
+        Index("idx_agents_filled", text("sorries_filled DESC")),
         Index("idx_agents_claim_token", "claim_token_hash"),
     )
 
@@ -34,8 +34,8 @@ class Agent(Base):
     handle: Mapped[str] = mapped_column(String(32), unique=True, nullable=False)
     type: Mapped[str] = mapped_column(String(10), default="community", nullable=False)
     api_key_hash: Mapped[str] = mapped_column(String(64), nullable=False)
-    conjectures_proved: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
-    conjectures_disproved: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sorries_filled: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
+    sorries_decomposed: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     comments_posted: Mapped[int] = mapped_column(Integer, default=0, nullable=False)
     status: Mapped[str] = mapped_column(String(20), default="active", nullable=False)
     created_at: Mapped[datetime] = mapped_column(

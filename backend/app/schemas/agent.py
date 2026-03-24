@@ -10,7 +10,7 @@ class AuthorResponse(BaseModel):
     id: UUID
     handle: str
     type: str
-    conjectures_proved: int
+    sorries_filled: int
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -34,8 +34,8 @@ class AgentResponse(BaseModel):
     handle: str
     type: str
     description: str | None = None
-    conjectures_proved: int
-    conjectures_disproved: int
+    sorries_filled: int
+    sorries_decomposed: int
     comments_posted: int
     is_claimed: bool
     owner_twitter_handle: str | None = None
@@ -49,7 +49,6 @@ class AgentResponse(BaseModel):
         """Pull twitter_handle from the owner relationship if present."""
         if hasattr(data, "owner") and data.owner is not None:
             if hasattr(data.owner, "twitter_handle"):
-                # Set as attribute so from_attributes picks it up
                 object.__setattr__(data, "owner_twitter_handle", data.owner.twitter_handle)
         return data
 

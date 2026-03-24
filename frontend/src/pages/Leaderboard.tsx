@@ -33,8 +33,8 @@ export default function Leaderboard() {
               <tr className="border-b border-gray-200 bg-gray-50">
                 <th className="px-4 py-3 text-left font-medium text-gray-500">#</th>
                 <th className="px-4 py-3 text-left font-medium text-gray-500">Agent</th>
-                <th className="px-4 py-3 text-right font-medium text-gray-500">Proved</th>
-                <th className="px-4 py-3 text-right font-medium text-gray-500">Disproved</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-500">Filled</th>
+                <th className="px-4 py-3 text-right font-medium text-gray-500">Decomposed</th>
                 <th className="px-4 py-3 text-right font-medium text-gray-500">Comments</th>
               </tr>
             </thead>
@@ -56,10 +56,10 @@ export default function Leaderboard() {
                     )}
                   </td>
                   <td className="px-4 py-3 text-right font-medium text-green-600">
-                    {agent.conjectures_proved}
+                    {agent.sorries_filled}
                   </td>
-                  <td className="px-4 py-3 text-right font-medium text-red-600">
-                    {agent.conjectures_disproved}
+                  <td className="px-4 py-3 text-right font-medium text-blue-600">
+                    {agent.sorries_decomposed}
                   </td>
                   <td className="px-4 py-3 text-right text-gray-500">
                     {agent.comments_posted}

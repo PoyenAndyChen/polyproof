@@ -1,11 +1,9 @@
 """HTTP client for the Kimina Lean Server.
 
-v4 entry points:
-- typecheck(lean_statement)          — wrap with sorry, validate statement is well-typed
-- verify_proof(lean_statement, tactics, conjecture_id) — locked proof signature
-- verify_disproof(lean_statement, tactics, conjecture_id) — locked disproof (negated)
-- verify_sorry_proof(sorry_proof_code) — compile sorry-proof as-is (with sorry allowed)
-- verify_freeform(code)              — compile as-is, reject sorry
+v5 entry points:
+- typecheck(goal_state, project_id)      — wrap with sorry, validate goal is well-typed
+- verify_fill(goal_state, tactics, sorry_id, project_id) — locked fill signature
+- verify_freeform(code, project_id)      — compile as-is, reject sorry
 """
 
 from dataclasses import dataclass, field
@@ -53,27 +51,30 @@ class LeanResult:
     messages: list[dict] | None = field(default=None)
 
 
-async def typecheck(lean_statement: str, lean_header: str | None = None) -> LeanResult:
-    """Typecheck a Lean statement (for project creation / conjecture validation).
+async def typecheck(
+    goal_state: str,
+    project_id: UUID | None = None,
+) -> LeanResult:
+    """Typecheck a goal state (for sorry validation).
 
-    Wraps as ``theorem _polyproof_check : <statement> := by sorry`` and compiles.
-    The sorry warning is intentionally ignored — it's our wrapper, not agent code.
+    Wraps as ``theorem _polyproof_check : <goal_state> := by sorry`` and compiles.
+    The sorry warning is intentionally ignored -- it's our wrapper, not agent code.
     """
-    header = _build_header(lean_header)
-    wrapped = f"{header}theorem _polyproof_check : {lean_statement} := by sorry"
+    header = _build_header(project_id)
+    wrapped = f"{header}theorem _polyproof_check : {goal_state} := by sorry"
     return await _send_to_lean(wrapped, allow_sorry=True)
 
 
-async def verify_proof(
-    lean_statement: str,
+async def verify_fill(
+    goal_state: str,
     tactics: str,
-    conjecture_id: UUID,
-    lean_header: str | None = None,
+    sorry_id: UUID,
+    project_id: UUID | None = None,
     allow_sorry: bool = False,
 ) -> LeanResult:
-    """Verify a proof against a conjecture's lean_statement.
+    """Verify a fill against a sorry's goal state.
 
-    Constructs: ``theorem proof_<id> : <statement> := by <tactics>``
+    Constructs: ``theorem fill_<id> : <goal_state> := by <tactics>``
     Then runs ``#print axioms`` to reject non-standard axioms.
 
     When allow_sorry=True (used by /verify), sorry is permitted for incremental
@@ -88,21 +89,21 @@ async def verify_proof(
             if keyword.lower() in tactics_lower:
                 return LeanResult(
                     status="rejected",
-                    error=f"Proof uses forbidden construct: {keyword.strip()}",
+                    error=f"Tactics use forbidden construct: {keyword.strip()}",
                 )
     else:
         rejected = _check_forbidden(tactics)
         if rejected:
             return rejected
 
-    header = _build_header(lean_header)
-    safe_id = str(conjecture_id).replace("-", "_")
+    header = _build_header(project_id)
+    safe_id = str(sorry_id).replace("-", "_")
     indented = "\n  ".join(tactics.splitlines())
     code = (
         f"{header}"
-        f"theorem proof_{safe_id} : {lean_statement} := by\n"
+        f"theorem fill_{safe_id} : {goal_state} := by\n"
         f"  {indented}\n\n"
-        f"#print axioms proof_{safe_id}\n"
+        f"#print axioms fill_{safe_id}\n"
     )
 
     result = await _send_to_lean(code, allow_sorry=allow_sorry)
@@ -111,61 +112,29 @@ async def verify_proof(
     return result
 
 
-async def verify_disproof(
-    lean_statement: str,
-    tactics: str,
-    conjecture_id: UUID,
-    lean_header: str | None = None,
+async def verify_freeform(
+    code: str,
+    project_id: UUID | None = None,
 ) -> LeanResult:
-    r"""Verify a disproof against a conjecture's lean_statement.
-
-    Constructs: ``theorem disproof_<id> : ¬(<statement>) := by <tactics>``
-    Then runs ``#print axioms`` to reject non-standard axioms.
-    """
-    rejected = _check_forbidden(tactics)
-    if rejected:
-        return rejected
-
-    header = _build_header(lean_header)
-    safe_id = str(conjecture_id).replace("-", "_")
-    indented = "\n  ".join(tactics.splitlines())
-    code = (
-        f"{header}"
-        f"theorem disproof_{safe_id} : ¬({lean_statement}) := by\n"
-        f"  {indented}\n\n"
-        f"#print axioms disproof_{safe_id}\n"
-    )
-
-    result = await _send_to_lean(code, allow_sorry=False)
-    if result.status == "passed":
-        result = _check_axioms(result)
-    return result
-
-
-async def verify_sorry_proof(sorry_proof_code: str, lean_header: str | None = None) -> LeanResult:
-    """Compile a sorry-proof as-is (typechecks with sorry allowed).
-
-    Used during decomposition to validate the sorry-proof structure.
-    The header is prepended if the sorry-proof doesn't already include imports.
-    """
-    if "import" not in sorry_proof_code[:50]:
-        sorry_proof_code = _build_header(lean_header) + sorry_proof_code
-    return await _send_to_lean(sorry_proof_code, allow_sorry=True)
-
-
-async def verify_freeform(code: str) -> LeanResult:
-    """Compile code as-is for the /verify endpoint (without conjecture_id).
+    """Compile code as-is for the /verify endpoint (freeform).
 
     Rejects sorry and forbidden keywords.
     """
+    if project_id is not None:
+        header = _build_header(project_id)
+        if "import" not in code[:50]:
+            code = header + code
     return await _send_to_lean(code, allow_sorry=False)
 
 
-def _build_header(lean_header: str | None) -> str:
-    """Build the Lean file header (import + optional project-level context)."""
+def _build_header(project_id: UUID | None = None) -> str:
+    """Build the Lean file header (import + optional project-level context).
+
+    In v5, the header is project-aware. For now we use a standard Mathlib import.
+    Future: load project-specific header from workspace.
+    """
     parts = ["import Mathlib\n"]
-    if lean_header:
-        parts.append(lean_header.strip() + "\n")
+    # TODO: load project-specific imports from workspace_path
     parts.append("\n")
     return "\n".join(parts)
 
@@ -182,7 +151,7 @@ def _check_forbidden(tactics: str) -> LeanResult | None:
         if keyword.lower() in tactics_lower:
             return LeanResult(
                 status="rejected",
-                error=f"Proof uses forbidden construct: {keyword.strip()}",
+                error=f"Tactics use forbidden construct: {keyword.strip()}",
             )
     return None
 
@@ -190,13 +159,13 @@ def _check_forbidden(tactics: str) -> LeanResult | None:
 def _check_axioms(result: LeanResult) -> LeanResult:
     """Check that only standard axioms are used.
 
-    Parses the ``#print axioms`` output from Lean messages and rejects proofs
+    Parses the ``#print axioms`` output from Lean messages and rejects fills
     that rely on non-standard axioms (e.g. custom axioms or sorryAx).
     """
     if not result.messages:
         return LeanResult(
             status="rejected",
-            error="No axiom information returned from Lean — proof cannot be verified",
+            error="No axiom information returned from Lean -- fill cannot be verified",
         )
 
     found_axiom_info = False
@@ -205,7 +174,7 @@ def _check_axioms(result: LeanResult) -> LeanResult:
 
         # Check for sorryAx anywhere in the output
         if "sorryAx" in data:
-            return LeanResult(status="rejected", error="Proof uses sorry")
+            return LeanResult(status="rejected", error="Tactics use sorry")
 
         # Parse the axiom list from #print axioms output
         if msg.get("severity") == "info" and "depends on axioms" in data:
@@ -218,7 +187,7 @@ def _check_axioms(result: LeanResult) -> LeanResult:
                 if unknown:
                     return LeanResult(
                         status="rejected",
-                        error=f"Proof uses non-standard axioms: {', '.join(sorted(unknown))}",
+                        error=f"Tactics use non-standard axioms: {', '.join(sorted(unknown))}",
                     )
 
         # '#print axioms' with no dependencies
@@ -228,7 +197,7 @@ def _check_axioms(result: LeanResult) -> LeanResult:
     if not found_axiom_info:
         return LeanResult(
             status="rejected",
-            error="No axiom information returned from Lean — proof cannot be verified",
+            error="No axiom information returned from Lean -- fill cannot be verified",
         )
 
     return result
@@ -314,11 +283,11 @@ async def _send_to_lean(
                 if sorry_warnings:
                     return LeanResult(
                         status="rejected",
-                        error="Proof uses 'sorry'",
+                        error="Tactics use 'sorry'",
                         messages=messages,
                     )
 
-            # No errors — compilation passed
+            # No errors -- compilation passed
             return LeanResult(status="passed", messages=messages)
 
     except httpx.TimeoutException:

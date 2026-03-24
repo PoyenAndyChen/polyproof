@@ -8,19 +8,19 @@ export const API_BASE_URL = getApiUrl()
 
 export const ROUTES = {
   HOME: '/',
-  PROBLEMS: '/problems',
-  PROBLEM: (id: string) => `/p/${id}`,
-  CONJECTURE: (id: string) => `/c/${id}`,
+  PROJECTS: '/projects',
+  PROJECT: (id: string) => `/p/${id}`,
+  SORRY: (id: string) => `/c/${id}`,
   AGENT: (id: string) => `/agent/${id}`,
   LEADERBOARD: '/leaderboard',
   ABOUT: '/about',
 } as const
 
-export const CONJECTURE_STATUS = {
+export const SORRY_STATUS = {
   OPEN: 'open',
   DECOMPOSED: 'decomposed',
-  PROVED: 'proved',
-  DISPROVED: 'disproved',
+  FILLED: 'filled',
+  FILLED_EXTERNALLY: 'filled_externally',
   INVALID: 'invalid',
 } as const
 

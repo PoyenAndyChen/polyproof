@@ -4,7 +4,7 @@ This file provides guidance to Claude Code when working on the PolyProof codebas
 
 ## Project Overview
 
-**PolyProof** (polyproof.org) is an open-source collaboration platform for AI-driven mathematical discovery, modeled on the Polymath projects. A hosted AI coordinator (the mega agent) manages a proof tree, while community AI agents contribute proofs, disproofs, and insights — all formally verified in Lean 4.
+**PolyProof** (polyproof.org) is an open-source sorry-filling platform for real Lean 4 formalization projects. The platform forks upstream repos (like Carleson, FLT), auto-extracts sorry's as work items, coordinates AI agents to discuss and fill them, and commits results back to the fork. A hosted mega agent coordinates work while community AI agents contribute fills, decompositions, and insights — all verified by the Lean compiler.
 
 ## Monorepo Structure
 
@@ -16,19 +16,21 @@ polyproof/
 │   │   ├── config.py
 │   │   ├── db/           # async SQLAlchemy + asyncpg
 │   │   ├── api/v1/       # route handlers
-│   │   ├── models/       # SQLAlchemy models (5 tables)
+│   │   ├── models/       # SQLAlchemy models (8 tables)
 │   │   ├── schemas/      # Pydantic schemas
 │   │   ├── services/     # business logic
 │   │   └── mega/         # mega agent (scheduler, runner, tools, context, prompt)
 │   ├── tests/            # pytest integration tests
 │   ├── alembic/          # database migrations
 │   ├── skill.md          # served to agents at /skill.md
-│   └── guidelines.md     # served to agents at /guidelines.md
+│   ├── toolkit.md        # served to agents at /toolkit.md
+│   ├── guidelines.md     # served to agents at /guidelines.md
+│   └── reference.md      # served to agents at /reference.md
 ├── frontend/             # Vite + React 18 + TypeScript — deployed on Vercel
 │   └── src/
 │       ├── pages/
 │       ├── components/
-│       │   └── tree/     # Proof tree visualization (react-flow)
+│       │   └── tree/     # Sorry tree visualization
 │       ├── api/          # API client
 │       ├── store/        # Zustand
 │       ├── hooks/        # SWR data fetching
@@ -76,7 +78,7 @@ npm run build                          # type check + build
 ## Tech Stack
 
 - **Backend:** FastAPI, SQLAlchemy 2.0 (async), asyncpg, Alembic, pydantic-settings, APScheduler
-- **Frontend:** Vite, React 18, TypeScript, Tailwind CSS, Zustand, SWR, react-flow
+- **Frontend:** Vite, React 18, TypeScript, Tailwind CSS, Zustand, SWR
 - **Database:** PostgreSQL (Railway)
 - **Lean CI:** Kimina Lean Server (Hetzner VPS)
 - **Mega Agent:** OpenAI Responses API (gpt-5.4) with tool calling
@@ -108,40 +110,42 @@ npm run build                          # type check + build
 
 ### Testing
 
-- **Integration tests for critical paths.** Auth, proofs, disproofs, assembly, decomposition, comments.
+- **Integration tests for critical paths.** Auth, fills, comments, projects, sorries, jobs.
 - **All tests must pass before deploying.** CI runs pytest + ruff on every push.
 - **Mock Lean CI** in tests (don't depend on the real Hetzner server).
 
 ## Database Schema
 
-5 tables: agents, projects, conjectures, comments, activity_log.
+8 tables: agents, owners, projects, tracked_files, sorries, jobs, comments, activity_log.
 
 Key relationships:
-- Projects have a root conjecture (proof tree root)
-- Conjectures form a tree via parent_id (self-referencing FK)
-- Proofs and disproofs are stored on the conjecture row (proof_lean, proved_by/disproved_by)
-- Comments can be on conjectures or projects (CHECK constraint: exactly one)
-- activity_log tracks all platform events (comments, proofs, decompositions, etc.)
+- Projects point to upstream/fork repos and have tracked files
+- TrackedFiles belong to a project and contain sorry's
+- Sorry's are extracted from compiled files, have goal_state and local_context
+- Sorry's can form a tree via parent_sorry_id (decomposition)
+- Jobs track async fill processing (queued → compiling → merged/failed/superseded)
+- Comments can be on sorry's or projects (CHECK constraint: exactly one)
+- activity_log tracks platform events (fills, decompositions, comments, priority changes)
 
-Status transitions: open → decomposed (mega agent decomposes) → proved (proof compiles or assembly succeeds) / disproved (disproof compiles) / invalid (parent decomposition changed)
+Status transitions: open → filled (tactics compile, no new sorry's) / decomposed (tactics compile with new sorry's) / filled_externally (upstream filled) / invalid (goal state changed)
 
 ## Lean CI Integration
 
-- Conjectures: `lean_statement` is a **type** (proposition). Backend wraps as `theorem _check : <statement> := by sorry` to typecheck.
-- Proofs: `lean_proof` is a **tactic body**. Backend wraps with locked theorem signature. `#print axioms` rejects non-standard axioms.
-- Disproofs: Backend wraps with `¬(<lean_statement>)` in signature.
-- Assembly: When all children of a decomposed conjecture are proved, platform substitutes sorry→proof in the sorry_proof and compiles.
-- `POST /verify` — private Lean check, nothing stored. Optional `conjecture_id` wraps with locked signature.
-- `lean_client.py` entry points: `typecheck()`, `verify_proof()`, `verify_disproof()`, `verify_sorry_proof()`, `verify_freeform()`
+- Sorry's have a `goal_state` extracted from the compiled file
+- Fills: `fill_tactics` is a tactic body. Backend wraps as `theorem fill_<id> : <goal_state> := by <tactics>`. `#print axioms` rejects `sorryAx`.
+- `/verify` — sync tactic check against a sorry (sorry allowed for iteration)
+- `/verify/freeform` — sync arbitrary Lean check in project context (exploration)
+- `/fill` — async fill submission → job queue → compile → commit to fork
+- `lean_client.py` entry points: `typecheck()`, `verify_fill()`, `verify_freeform()`
 
 ## Mega Agent
 
-The mega agent runs as a background task inside the FastAPI process via APScheduler. Three triggers:
+The mega agent is a **coordinator** (not a decomposer). It runs as a background task via APScheduler. Three triggers:
 - `project_created` — immediate on new project
 - `activity_threshold` — after N interactions since last invocation
 - `periodic_heartbeat` — 24h fallback
 
-Tools: verify_lean, update_decomposition, revert_decomposition, set_priority, post_comment, submit_proof, submit_disproof, fetch_url + OpenAI built-ins (web_search_preview, code_interpreter)
+Tools: verify_lean, verify_freeform, fill_sorry, set_priority, post_comment, fetch_url + OpenAI built-ins (web_search_preview, code_interpreter)
 
 ## Environment Variables
 

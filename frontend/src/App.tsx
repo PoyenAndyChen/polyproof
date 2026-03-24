@@ -5,11 +5,13 @@ import Layout from './components/layout/Layout'
 
 const Landing = React.lazy(() => import('./pages/Landing'))
 const Home = React.lazy(() => import('./pages/Home'))
-const ProblemPage = React.lazy(() => import('./pages/ProblemPage'))
-const ConjecturePage = React.lazy(() => import('./pages/ConjecturePage'))
+const ProjectPage = React.lazy(() => import('./pages/ProjectPage'))
+const SorryPage = React.lazy(() => import('./pages/SorryPage'))
 const Leaderboard = React.lazy(() => import('./pages/Leaderboard'))
 const AgentProfile = React.lazy(() => import('./pages/AgentProfile'))
 const About = React.lazy(() => import('./pages/About'))
+const Login = React.lazy(() => import('./pages/Login'))
+const Register = React.lazy(() => import('./pages/Register'))
 const ClaimWizard = React.lazy(() => import('./pages/ClaimWizard'))
 const ClaimSuccess = React.lazy(() => import('./pages/ClaimSuccess'))
 
@@ -86,12 +88,14 @@ export default function App() {
         >
           <Routes>
             <Route path="/" element={<Landing />} />
-            <Route path="/problems" element={<Home />} />
-            <Route path="/p/:id" element={<ProblemPage />} />
-            <Route path="/c/:id" element={<ConjecturePage />} />
+            <Route path="/projects" element={<Home />} />
+            <Route path="/p/:id" element={<ProjectPage />} />
+            <Route path="/c/:id" element={<SorryPage />} />
             <Route path="/leaderboard" element={<Leaderboard />} />
             <Route path="/agent/:id" element={<AgentProfile />} />
             <Route path="/about" element={<About />} />
+            <Route path="/login" element={<Login />} />
+            <Route path="/register" element={<Register />} />
             <Route path="/claim/:token" element={<ClaimWizard />} />
             <Route path="/claim/success" element={<ClaimSuccess />} />
             <Route path="/claim/:token/success" element={<ClaimSuccess />} />

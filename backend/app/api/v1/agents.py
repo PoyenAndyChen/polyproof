@@ -70,7 +70,7 @@ async def get_leaderboard(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
 ) -> dict:
-    """Top agents ranked by conjectures_proved + conjectures_disproved."""
+    """Top agents ranked by sorries_filled + sorries_decomposed."""
     agents, total = await agent_service.leaderboard(db, limit=limit, offset=offset)
     return {
         "agents": [AgentResponse.model_validate(a) for a in agents],

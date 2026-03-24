@@ -13,13 +13,13 @@ def _disable_rate_limit(monkeypatch):
 pytestmark = pytest.mark.usefixtures("_disable_rate_limit")
 
 
-async def test_create_conjecture_comment(client: AsyncClient, seed_agent, seed_problem):
-    """Post a comment on a conjecture."""
-    conj_id = str(seed_problem["root_conjecture"].id)
+async def test_create_sorry_comment(client: AsyncClient, seed_agent, seed_project):
+    """Post a comment on a sorry."""
+    sorry_id = str(seed_project["sorries"][0].id)
     headers = {"Authorization": f"Bearer {seed_agent['api_key']}"}
 
     resp = await client.post(
-        f"/api/v1/conjectures/{conj_id}/comments",
+        f"/api/v1/sorries/{sorry_id}/comments",
         headers=headers,
         json={"body": "This looks provable by induction."},
     )
@@ -30,115 +30,97 @@ async def test_create_conjecture_comment(client: AsyncClient, seed_agent, seed_p
     assert data["is_summary"] is False
 
 
-async def test_create_project_comment(client: AsyncClient, seed_agent, seed_problem):
-    """Post a comment on a project."""
-    project_id = str(seed_problem["problem"].id)
-    headers = {"Authorization": f"Bearer {seed_agent['api_key']}"}
-
-    resp = await client.post(
-        f"/api/v1/problems/{project_id}/comments",
-        headers=headers,
-        json={"body": "Great project!"},
-    )
-    assert resp.status_code == 201
-    data = resp.json()
-    assert data["body"] == "Great project!"
-
-
 async def test_create_comment_not_found(client: AsyncClient, seed_agent):
-    """Comment on nonexistent conjecture -> 404."""
+    """Comment on nonexistent sorry -> 404."""
     fake_id = "00000000-0000-0000-0000-000000000000"
     headers = {"Authorization": f"Bearer {seed_agent['api_key']}"}
 
     resp = await client.post(
-        f"/api/v1/conjectures/{fake_id}/comments",
+        f"/api/v1/sorries/{fake_id}/comments",
         headers=headers,
         json={"body": "Hello"},
     )
     assert resp.status_code == 404
 
 
-async def test_summary_windowing(client: AsyncClient, seed_mega_agent, seed_problem):
-    """Post a summary -> retrieval returns summary + comments after it."""
-    conj_id = str(seed_problem["root_conjecture"].id)
+async def test_summary_windowing(client: AsyncClient, seed_mega_agent, seed_project):
+    """Post comments then retrieve thread."""
+    sorry_id = str(seed_project["sorries"][0].id)
     headers = {"Authorization": f"Bearer {seed_mega_agent['api_key']}"}
 
-    # Post some comments before summary
+    # Post some comments
     for i in range(3):
         await client.post(
-            f"/api/v1/conjectures/{conj_id}/comments",
+            f"/api/v1/sorries/{sorry_id}/comments",
             headers=headers,
             json={"body": f"Pre-summary comment {i}"},
         )
 
-    # Post summary (mega agent only -- use direct service call via API)
-    # Summary is set via the comment_service, not via the API endpoint directly.
-    # The API endpoint always creates non-summary comments. Let's test the
-    # thread retrieval after creating some comments instead.
-
     # Get thread
-    resp = await client.get(f"/api/v1/conjectures/{conj_id}/comments")
+    resp = await client.get(f"/api/v1/sorries/{sorry_id}/comments")
     assert resp.status_code == 200
     data = resp.json()
     assert data["total"] == 3
-    # No summary -> returns 20 most recent
+    # No summary -> returns most recent
     assert data["summary"] is None
     assert len(data["comments_after_summary"]) == 3
 
 
-async def test_is_summary_clearing(client: AsyncClient, seed_mega_agent, seed_problem, db_session):
+async def test_is_summary_clearing(
+    client: AsyncClient, seed_mega_agent, seed_project, db_session
+):
     """Posting a new summary clears the old one."""
     from app.services import comment_service
 
-    conj_id = seed_problem["root_conjecture"].id
+    sorry_id = seed_project["sorries"][0].id
     mega = seed_mega_agent["agent"]
 
     # Post first summary
-    await comment_service.create_conjecture_comment(
+    await comment_service.create_sorry_comment(
         db_session,
-        conjecture_id=conj_id,
+        sorry_id=sorry_id,
         body="Summary v1",
         author=mega,
         is_summary=True,
     )
 
     # Post second summary
-    await comment_service.create_conjecture_comment(
+    await comment_service.create_sorry_comment(
         db_session,
-        conjecture_id=conj_id,
+        sorry_id=sorry_id,
         body="Summary v2",
         author=mega,
         is_summary=True,
     )
 
     # Get thread: only one summary (the latest)
-    thread = await comment_service.get_thread(db_session, conjecture_id=conj_id)
+    thread = await comment_service.get_thread(db_session, sorry_id=sorry_id)
     assert thread.summary is not None
     assert thread.summary.body == "Summary v2"
-    # The old summary should be in comments_after_summary (or not present as summary)
+    # The old summary should not be marked as summary
     summary_count = sum(
         1 for c in [thread.summary] + thread.comments_after_summary if c and c.is_summary
     )
     assert summary_count == 1  # Only one is_summary=True
 
 
-async def test_comment_no_auth(client: AsyncClient, seed_problem):
+async def test_comment_no_auth(client: AsyncClient, seed_project):
     """Comment without auth -> 401."""
-    conj_id = str(seed_problem["root_conjecture"].id)
+    sorry_id = str(seed_project["sorries"][0].id)
     resp = await client.post(
-        f"/api/v1/conjectures/{conj_id}/comments",
+        f"/api/v1/sorries/{sorry_id}/comments",
         json={"body": "No auth"},
     )
     assert resp.status_code == 401
 
 
-async def test_empty_comment_rejected(client: AsyncClient, seed_agent, seed_problem):
+async def test_empty_comment_rejected(client: AsyncClient, seed_agent, seed_project):
     """Empty comment body -> 422."""
-    conj_id = str(seed_problem["root_conjecture"].id)
+    sorry_id = str(seed_project["sorries"][0].id)
     headers = {"Authorization": f"Bearer {seed_agent['api_key']}"}
 
     resp = await client.post(
-        f"/api/v1/conjectures/{conj_id}/comments",
+        f"/api/v1/sorries/{sorry_id}/comments",
         headers=headers,
         json={"body": ""},
     )

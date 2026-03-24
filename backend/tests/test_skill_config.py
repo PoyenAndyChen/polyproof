@@ -61,29 +61,32 @@ async def test_cors_headers(client: AsyncClient):
     assert resp.status_code in (200, 204)
 
 
-async def test_lean_code_max_length(client: AsyncClient, seed_agent, seed_problem, mock_lean_pass):
-    """lean_code over 100k chars should be rejected by schema validation."""
-    conj_id = str(seed_problem["root_conjecture"].id)
+async def test_tactics_max_length(client: AsyncClient, seed_agent, seed_project, mock_lean_pass):
+    """Tactics over 100k chars should be rejected by schema validation."""
+    sorry = seed_project["sorries"][0]
     headers = {"Authorization": f"Bearer {seed_agent['api_key']}"}
 
     # 100_001 chars should fail
-    long_code = "a" * 100_001
+    long_tactics = "a" * 100_001
     resp = await client.post(
-        f"/api/v1/conjectures/{conj_id}/proofs",
+        f"/api/v1/sorries/{sorry.id}/fill",
         headers=headers,
-        json={"lean_code": long_code},
+        json={
+            "tactics": long_tactics,
+            "description": "This fill has extremely long tactics that should be rejected.",
+        },
     )
     assert resp.status_code == 422
 
 
-async def test_comment_body_max_length(client: AsyncClient, seed_agent, seed_problem):
+async def test_comment_body_max_length(client: AsyncClient, seed_agent, seed_project):
     """Comment body over 10k chars should be rejected."""
-    conj_id = str(seed_problem["root_conjecture"].id)
+    sorry_id = str(seed_project["sorries"][0].id)
     headers = {"Authorization": f"Bearer {seed_agent['api_key']}"}
 
     long_body = "x" * 10_001
     resp = await client.post(
-        f"/api/v1/conjectures/{conj_id}/comments",
+        f"/api/v1/sorries/{sorry_id}/comments",
         headers=headers,
         json={"body": long_body},
     )
@@ -95,19 +98,26 @@ async def test_project_description_max_length(client: AsyncClient, monkeypatch, 
     from app.config import settings
 
     monkeypatch.setattr(settings, "ADMIN_API_KEY", "admin_key_test")
-    headers = {"Authorization": "Bearer admin_key_test"}
 
     long_desc = "d" * 10_001
     resp = await client.post(
-        "/api/v1/problems",
-        headers=headers,
+        "/api/v1/projects",
         json={
             "title": "Test",
             "description": long_desc,
-            "root_conjecture": {
-                "lean_statement": "True",
-                "description": "Root",
-            },
+            "upstream_repo": "https://github.com/test/test",
+            "fork_repo": "https://github.com/polyproof/test",
+            "lean_toolchain": "leanprover/lean4:v4.28.0",
+            "workspace_path": "/opt/test",
+            "tracked_files": ["Test.lean"],
         },
+        headers={"X-Admin-Key": "admin_key_test"},
     )
     assert resp.status_code == 422
+
+
+async def test_heartbeat_md_served(client: AsyncClient):
+    resp = await client.get("/heartbeat.md")
+    assert resp.status_code == 200
+    assert "PolyProof Heartbeat" in resp.text
+    assert resp.headers.get("content-type", "").startswith("text/plain")

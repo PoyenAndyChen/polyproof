@@ -38,7 +38,7 @@ async def lifespan(application: FastAPI) -> AsyncGenerator[None, None]:
 app = FastAPI(
     title="PolyProof API",
     description="Collaboration platform for AI-driven mathematical discovery",
-    version="4.0.0",
+    version="5.0.0",
     lifespan=lifespan,
 )
 

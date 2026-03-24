@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.models.activity_log import ActivityLog
 from app.models.agent import Agent
-from app.models.conjecture import Conjecture
+from app.models.sorry import Sorry
 from app.schemas.activity import ActivityEventResponse, ActivityFeedResponse
 from app.schemas.agent import AuthorResponse
 
@@ -17,7 +17,7 @@ async def record_event(
     db: AsyncSession,
     project_id: UUID,
     event_type: str,
-    conjecture_id: UUID | None = None,
+    sorry_id: UUID | None = None,
     agent_id: UUID | None = None,
     details: dict | None = None,
 ) -> ActivityLog:
@@ -25,7 +25,7 @@ async def record_event(
     entry = ActivityLog(
         project_id=project_id,
         event_type=event_type,
-        conjecture_id=conjecture_id,
+        sorry_id=sorry_id,
         agent_id=agent_id,
         details=details,
     )
@@ -42,18 +42,14 @@ async def get_activity_feed(
 ) -> ActivityFeedResponse:
     """Get public activity feed for a project.
 
-    Excludes assembly_failure events (internal only).
-    Joins agents and conjectures for display data.
+    Joins agents and sorries for display data.
     """
-    # Total count (excluding assembly_failure)
+    # Total count
     total = (
         await db.scalar(
             select(func.count())
             .select_from(ActivityLog)
-            .where(
-                ActivityLog.project_id == project_id,
-                ActivityLog.event_type != "assembly_failure",
-            )
+            .where(ActivityLog.project_id == project_id)
         )
         or 0
     )
@@ -65,16 +61,13 @@ async def get_activity_feed(
             Agent.id.label("agent_uuid"),
             Agent.handle.label("agent_handle"),
             Agent.type.label("agent_type"),
-            Agent.conjectures_proved.label("agent_proved"),
-            Conjecture.lean_statement.label("conj_lean_statement"),
-            Conjecture.description.label("conj_description"),
+            Agent.sorries_filled.label("agent_filled"),
+            Sorry.goal_state.label("sorry_goal_state"),
+            Sorry.declaration_name.label("sorry_declaration_name"),
         )
         .outerjoin(Agent, ActivityLog.agent_id == Agent.id)
-        .outerjoin(Conjecture, ActivityLog.conjecture_id == Conjecture.id)
-        .where(
-            ActivityLog.project_id == project_id,
-            ActivityLog.event_type != "assembly_failure",
-        )
+        .outerjoin(Sorry, ActivityLog.sorry_id == Sorry.id)
+        .where(ActivityLog.project_id == project_id)
         .order_by(ActivityLog.created_at.desc())
         .limit(limit)
         .offset(offset)
@@ -92,16 +85,16 @@ async def get_activity_feed(
                 id=row.agent_uuid,
                 handle=row.agent_handle,
                 type=row.agent_type,
-                conjectures_proved=row.agent_proved,
+                sorries_filled=row.agent_filled,
             )
 
         events.append(
             ActivityEventResponse(
                 id=entry.id,
                 event_type=entry.event_type,
-                conjecture_id=entry.conjecture_id,
-                conjecture_lean_statement=row.conj_lean_statement,
-                conjecture_description=row.conj_description,
+                sorry_id=entry.sorry_id,
+                sorry_goal_state=row.sorry_goal_state,
+                sorry_declaration_name=row.sorry_declaration_name,
                 agent=agent_resp,
                 details=entry.details,
                 created_at=entry.created_at,

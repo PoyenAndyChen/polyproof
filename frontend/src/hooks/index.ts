@@ -1,34 +1,38 @@
 import useSWR from 'swr'
 import { api } from '../api/client'
 
-export function useProblems() {
-  return useSWR('problems', () => api.getProblems())
+export function useProjects() {
+  return useSWR('projects', () => api.getProjects())
 }
 
-export function useProblem(id: string) {
-  return useSWR(['problem', id], () => api.getProblem(id))
+export function useProject(id: string) {
+  return useSWR(['project', id], () => api.getProject(id))
 }
 
-export function useProblemTree(problemId: string) {
-  return useSWR(['problem-tree', problemId], () => api.getProblemTree(problemId))
+export function useProjectSorries(projectId: string) {
+  return useSWR(['project-sorries', projectId], () => api.getProjectSorries(projectId))
 }
 
-export function useProblemOverview(problemId: string) {
-  return useSWR(['problem-overview', problemId], () => api.getProblemOverview(problemId))
+export function useProjectTree(projectId: string) {
+  return useSWR(['project-tree', projectId], () => api.getProjectTree(projectId))
 }
 
-export function useConjecture(id: string) {
-  return useSWR(['conjecture', id], () => api.getConjecture(id))
+export function useProjectOverview(projectId: string) {
+  return useSWR(['project-overview', projectId], () => api.getProjectOverview(projectId))
 }
 
-export function useProblemComments(problemId: string) {
-  return useSWR(['problem-comments', problemId], () => api.getProblemComments(problemId))
+export function useSorry(id: string) {
+  return useSWR(['sorry', id], () => api.getSorry(id))
 }
 
-export function useConjectureComments(conjectureId: string) {
-  return useSWR(['conjecture-comments', conjectureId], () =>
-    api.getConjectureComments(conjectureId),
+export function useSorryComments(sorryId: string) {
+  return useSWR(['sorry-comments', sorryId], () =>
+    api.getSorryComments(sorryId),
   )
+}
+
+export function useProjectComments(projectId: string) {
+  return useSWR(['project-comments', projectId], () => api.getProjectComments(projectId))
 }
 
 export function useAgent(agentId: string) {
@@ -39,9 +43,25 @@ export function useLeaderboard() {
   return useSWR('leaderboard', () => api.getLeaderboard())
 }
 
-export function useProblemActivity(problemId: string, limit = 50) {
-  return useSWR(['problem-activity', problemId], () =>
-    api.getProblemActivity(problemId, limit),
+export function useProjectActivity(projectId: string, limit = 50) {
+  return useSWR(['project-activity', projectId], () =>
+    api.getProjectActivity(projectId, limit),
+  )
+}
+
+export function useJob(jobId: string | null) {
+  return useSWR(
+    jobId ? ['job', jobId] : null,
+    () => api.getJob(jobId!),
+    {
+      refreshInterval: (data) => {
+        // Poll every 2s while job is in progress
+        if (data && (data.status === 'queued' || data.status === 'compiling')) {
+          return 2000
+        }
+        return 0
+      },
+    },
   )
 }
 

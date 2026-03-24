@@ -4,10 +4,18 @@ from pydantic import BaseModel, Field
 
 
 class VerifyRequest(BaseModel):
-    lean_code: str = Field(..., min_length=1, max_length=100_000)
-    conjecture_id: UUID | None = None
+    sorry_id: UUID | None = None
+    tactics: str = Field(min_length=1, max_length=100000)
+
+
+class FreeformVerifyRequest(BaseModel):
+    project_id: UUID
+    code: str = Field(min_length=1, max_length=100000)
 
 
 class VerifyResult(BaseModel):
-    status: str
+    status: str  # passed, rejected, timeout
     error: str | None = None
+    sorry_status: str | None = None
+    would_be_decomposition: bool = False
+    messages: list[str] | None = None

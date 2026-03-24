@@ -21,10 +21,8 @@ class ActivityLog(Base):
     __table_args__ = (
         CheckConstraint(
             "event_type IN ("
-            "'comment', 'proof', 'disproof', "
-            "'assembly_success', 'assembly_failure', "
-            "'decomposition_created', 'decomposition_updated', 'decomposition_reverted', "
-            "'priority_changed'"
+            "'comment', 'fill', 'decomposition', "
+            "'fill_reverted', 'priority_changed'"
             ")",
             name="activity_log_event_type_check",
         ),
@@ -34,11 +32,11 @@ class ActivityLog(Base):
 
     id: Mapped[UUID] = mapped_column(primary_key=True, default=uuid4)
     project_id: Mapped[UUID] = mapped_column(
-        ForeignKey("problems.id", ondelete="CASCADE"), nullable=False
+        ForeignKey("projects.id", ondelete="CASCADE"), nullable=False
     )
     event_type: Mapped[str] = mapped_column(String(24), nullable=False)
-    conjecture_id: Mapped[UUID | None] = mapped_column(
-        ForeignKey("conjectures.id", ondelete="SET NULL"),
+    sorry_id: Mapped[UUID | None] = mapped_column(
+        ForeignKey("sorries.id", ondelete="SET NULL"),
     )
     agent_id: Mapped[UUID | None] = mapped_column(
         ForeignKey("agents.id", ondelete="SET NULL"),

@@ -9,8 +9,8 @@ from app.errors import BadRequestError, NotFoundError
 from app.models.activity_log import ActivityLog
 from app.models.agent import Agent
 from app.models.comment import Comment
-from app.models.conjecture import Conjecture
-from app.models.problem import Problem
+from app.models.project import Project
+from app.models.sorry import Sorry
 from app.schemas.agent import AuthorResponse
 from app.schemas.comment import CommentResponse, CommentThread
 
@@ -24,7 +24,7 @@ def _comment_to_response(comment: Comment, agent: Agent) -> CommentResponse:
             id=agent.id,
             handle=agent.handle,
             type=agent.type,
-            conjectures_proved=agent.conjectures_proved,
+            sorries_filled=agent.sorries_filled,
         ),
         is_summary=comment.is_summary,
         parent_comment_id=comment.parent_comment_id,
@@ -32,40 +32,40 @@ def _comment_to_response(comment: Comment, agent: Agent) -> CommentResponse:
     )
 
 
-async def create_conjecture_comment(
+async def create_sorry_comment(
     db: AsyncSession,
-    conjecture_id: UUID,
+    sorry_id: UUID,
     body: str,
     author: Agent,
     parent_comment_id: UUID | None = None,
     is_summary: bool = False,
 ) -> CommentResponse:
-    """Create a comment on a conjecture.
+    """Create a comment on a sorry.
 
     Increments agent.comments_posted and logs to activity_log.
     """
-    conjecture = await db.get(Conjecture, conjecture_id)
-    if not conjecture:
-        raise NotFoundError("Conjecture")
+    sorry = await db.get(Sorry, sorry_id)
+    if not sorry:
+        raise NotFoundError("Sorry")
 
     # Validate parent_comment_id
     if parent_comment_id is not None:
-        await _validate_parent_comment(db, parent_comment_id, conjecture_id=conjecture_id)
+        await _validate_parent_comment(db, parent_comment_id, sorry_id=sorry_id)
 
     # Handle is_summary: only mega agents can post summaries
     if is_summary and author.type != "mega":
         raise BadRequestError("Only mega agents can post summaries")
 
-    # Clear previous summary for this conjecture
+    # Clear previous summary for this sorry
     if is_summary:
         await db.execute(
             update(Comment)
-            .where(Comment.conjecture_id == conjecture_id, Comment.is_summary.is_(True))
+            .where(Comment.sorry_id == sorry_id, Comment.is_summary.is_(True))
             .values(is_summary=False)
         )
 
     comment = Comment(
-        conjecture_id=conjecture_id,
+        sorry_id=sorry_id,
         project_id=None,
         author_id=author.id,
         body=body,
@@ -82,9 +82,9 @@ async def create_conjecture_comment(
 
     # Log activity
     activity = ActivityLog(
-        project_id=conjecture.project_id,
+        project_id=sorry.project_id,
         event_type="comment",
-        conjecture_id=conjecture_id,
+        sorry_id=sorry_id,
         agent_id=author.id,
         details={"comment_id": str(comment.id)},
     )
@@ -94,7 +94,7 @@ async def create_conjecture_comment(
     return _comment_to_response(comment, author)
 
 
-async def create_problem_comment(
+async def create_project_comment(
     db: AsyncSession,
     project_id: UUID,
     body: str,
@@ -102,13 +102,13 @@ async def create_problem_comment(
     parent_comment_id: UUID | None = None,
     is_summary: bool = False,
 ) -> CommentResponse:
-    """Create a comment on a problem.
+    """Create a comment on a project.
 
     Increments agent.comments_posted and logs to activity_log.
     """
-    problem = await db.get(Problem, project_id)
-    if not problem:
-        raise NotFoundError("Problem")
+    project = await db.get(Project, project_id)
+    if not project:
+        raise NotFoundError("Project")
 
     # Validate parent_comment_id
     if parent_comment_id is not None:
@@ -118,7 +118,7 @@ async def create_problem_comment(
     if is_summary and author.type != "mega":
         raise BadRequestError("Only mega agents can post summaries")
 
-    # Clear previous summary for this problem
+    # Clear previous summary for this project
     if is_summary:
         await db.execute(
             update(Comment)
@@ -127,7 +127,7 @@ async def create_problem_comment(
         )
 
     comment = Comment(
-        conjecture_id=None,
+        sorry_id=None,
         project_id=project_id,
         author_id=author.id,
         body=body,
@@ -142,11 +142,11 @@ async def create_problem_comment(
         update(Agent).where(Agent.id == author.id).values(comments_posted=Agent.comments_posted + 1)
     )
 
-    # Log activity (problem-level comment: conjecture_id is NULL)
+    # Log activity (project-level comment: sorry_id is NULL)
     activity = ActivityLog(
         project_id=project_id,
         event_type="comment",
-        conjecture_id=None,
+        sorry_id=None,
         agent_id=author.id,
         details={"comment_id": str(comment.id)},
     )
@@ -158,7 +158,7 @@ async def create_problem_comment(
 
 async def get_thread(
     db: AsyncSession,
-    conjecture_id: UUID | None = None,
+    sorry_id: UUID | None = None,
     project_id: UUID | None = None,
 ) -> CommentThread:
     """Get a comment thread with summary-based windowing.
@@ -169,8 +169,8 @@ async def get_thread(
     3. If total < 20, return 20 most recent instead
     """
     # Build filter for the target
-    if conjecture_id is not None:
-        target_filter = Comment.conjecture_id == conjecture_id
+    if sorry_id is not None:
+        target_filter = Comment.sorry_id == sorry_id
     else:
         target_filter = Comment.project_id == project_id
 
@@ -255,7 +255,7 @@ async def _build_thread_from_comments(
 async def _validate_parent_comment(
     db: AsyncSession,
     parent_comment_id: UUID,
-    conjecture_id: UUID | None = None,
+    sorry_id: UUID | None = None,
     project_id: UUID | None = None,
 ) -> None:
     """Validate parent comment exists, belongs to the target, and depth < 5."""
@@ -263,11 +263,11 @@ async def _validate_parent_comment(
     if not parent:
         raise NotFoundError("Parent comment")
 
-    if conjecture_id is not None and parent.conjecture_id != conjecture_id:
-        raise BadRequestError("Parent comment does not belong to this conjecture")
+    if sorry_id is not None and parent.sorry_id != sorry_id:
+        raise BadRequestError("Parent comment does not belong to this sorry")
 
     if project_id is not None and parent.project_id != project_id:
-        raise BadRequestError("Parent comment does not belong to this problem")
+        raise BadRequestError("Parent comment does not belong to this project")
 
     # Check depth (max 5 levels)
     depth = await _get_comment_depth(db, parent_comment_id)

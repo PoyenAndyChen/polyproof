@@ -1,6 +1,6 @@
 import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
-import type { ApiTreeNode, TreeNode } from '../types'
+import type { SorryTreeNode } from '../types'
 
 /** Merge Tailwind classes with clsx */
 export function cn(...inputs: ClassValue[]) {
@@ -29,79 +29,58 @@ export function formatDate(dateString: string): string {
   })
 }
 
-/** Truncate a string to a maximum length, adding ellipsis if needed.
- *  LaTeX-aware: won't cut inside $...$, \(...\), $$...$$, or \[...\] blocks. */
+/** Truncate a string to a maximum length, adding ellipsis if needed. */
 export function truncate(str: string, maxLength: number): string {
   if (str.length <= maxLength) return str
-
-  // Find a safe cut point that doesn't break LaTeX delimiters
-  let cutAt = maxLength - 1
-
-  // Count open delimiters up to the cut point
-  const before = str.slice(0, cutAt)
-
-  // Check for unclosed \[ (display math)
-  const openDisplay = (before.match(/\\\[/g) || []).length
-  const closeDisplay = (before.match(/\\\]/g) || []).length
-  if (openDisplay > closeDisplay) {
-    // Find the start of the unclosed \[ and cut before it
-    const lastOpen = before.lastIndexOf('\\[')
-    if (lastOpen >= 0) cutAt = lastOpen
-  }
-
-  // Check for unclosed $$ (display math)
-  const doubleDollar = (before.match(/\$\$/g) || []).length
-  if (doubleDollar % 2 !== 0) {
-    const lastDD = before.lastIndexOf('$$')
-    if (lastDD >= 0) cutAt = Math.min(cutAt, lastDD)
-  }
-
-  // Check for unclosed $ (inline math) — count single $ not part of $$
-  const singleDollarCount = (before.replace(/\$\$/g, '').match(/\$/g) || []).length
-  if (singleDollarCount % 2 !== 0) {
-    const lastDollar = before.lastIndexOf('$')
-    if (lastDollar >= 0 && before[lastDollar - 1] !== '$') cutAt = Math.min(cutAt, lastDollar)
-  }
-
-  // Check for unclosed \(
-  const openInline = (before.match(/\\\(/g) || []).length
-  const closeInline = (before.match(/\\\)/g) || []).length
-  if (openInline > closeInline) {
-    const lastOpen = before.lastIndexOf('\\(')
-    if (lastOpen >= 0) cutAt = Math.min(cutAt, lastOpen)
-  }
-
-  return str.slice(0, cutAt).trimEnd() + '\u2026'
+  return str.slice(0, maxLength - 1).trimEnd() + '\u2026'
 }
 
 /**
- * Flatten nested API tree response into a flat TreeNode array for react-flow.
- * Recursively walks the nested structure and adds parent_id references.
+ * Flatten nested sorry tree into a flat array with parent references.
+ * Used for building the tree view.
  */
-export function flattenTree(
-  root: ApiTreeNode,
-  projectId: string,
-  parentId: string | null = null,
-): TreeNode[] {
-  const provedChildCount = root.children.filter((c) => c.status === 'proved').length
+export interface FlatSorryNode {
+  id: string
+  declaration_name: string
+  sorry_index: number
+  goal_state: string
+  status: string
+  priority: string
+  filled_by?: string
+  active_agents: number
+  parent_sorry_id?: string
+  child_count: number
+  filled_child_count: number
+}
 
-  const node: TreeNode = {
-    id: root.id,
-    project_id: projectId,
-    parent_id: parentId,
-    lean_statement: root.lean_statement,
-    description: root.description,
-    status: root.status,
-    priority: root.priority,
-    comment_count: root.comment_count,
-    child_count: root.children.length,
-    proved_child_count: provedChildCount,
-  }
+export function flattenSorryTree(
+  nodes: SorryTreeNode[],
+  parentId?: string,
+): FlatSorryNode[] {
+  const result: FlatSorryNode[] = []
 
-  const result: TreeNode[] = [node]
+  for (const node of nodes) {
+    const filledChildCount = node.children.filter(
+      (c) => c.status === 'filled' || c.status === 'filled_externally',
+    ).length
 
-  for (const child of root.children) {
-    result.push(...flattenTree(child, projectId, root.id))
+    result.push({
+      id: node.id,
+      declaration_name: node.declaration_name,
+      sorry_index: node.sorry_index,
+      goal_state: node.goal_state,
+      status: node.status,
+      priority: node.priority,
+      filled_by: node.filled_by,
+      active_agents: node.active_agents,
+      parent_sorry_id: parentId,
+      child_count: node.children.length,
+      filled_child_count: filledChildCount,
+    })
+
+    if (node.children.length > 0) {
+      result.push(...flattenSorryTree(node.children, node.id))
+    }
   }
 
   return result

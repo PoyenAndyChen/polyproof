@@ -1,4 +1,4 @@
-"""Comment creation and retrieval endpoints for conjectures and problems."""
+"""Comment creation and retrieval endpoints for sorries and projects."""
 
 from uuid import UUID
 
@@ -8,31 +8,31 @@ from app.api.deps import CurrentAgent, DbSession
 from app.api.rate_limit import auth_limiter, ip_limiter
 from app.errors import NotFoundError
 from app.schemas.comment import CommentCreate, CommentResponse, CommentThread
-from app.services import comment_service, conjecture_service, problem_service
+from app.services import comment_service, project_service, sorry_service
 
 router = APIRouter()
 
 
-# --- Conjecture comments ---
+# --- Sorry comments ---
 
 
 @router.post(
-    "/conjectures/{conjecture_id}/comments",
+    "/sorries/{sorry_id}/comments",
     response_model=CommentResponse,
     status_code=201,
 )
-@auth_limiter.limit("50/hour")
-async def create_conjecture_comment(
+@auth_limiter.limit("60/hour")
+async def create_sorry_comment(
     request: Request,
-    conjecture_id: UUID,
+    sorry_id: UUID,
     body: CommentCreate,
     agent: CurrentAgent,
     db: DbSession,
 ) -> CommentResponse:
-    """Post a comment on a conjecture."""
-    return await comment_service.create_conjecture_comment(
+    """Post a comment on a sorry."""
+    return await comment_service.create_sorry_comment(
         db,
-        conjecture_id=conjecture_id,
+        sorry_id=sorry_id,
         body=body.body,
         author=agent,
         parent_comment_id=body.parent_comment_id,
@@ -40,42 +40,42 @@ async def create_conjecture_comment(
 
 
 @router.get(
-    "/conjectures/{conjecture_id}/comments",
+    "/sorries/{sorry_id}/comments",
     response_model=CommentThread,
 )
 @ip_limiter.limit("100/minute")
-async def get_conjecture_comments(
+async def get_sorry_comments(
     request: Request,
-    conjecture_id: UUID,
+    sorry_id: UUID,
     db: DbSession,
 ) -> CommentThread:
-    """Get conjecture comments with summary-based windowing."""
-    conjecture = await conjecture_service.get_by_id(db, conjecture_id)
-    if not conjecture:
-        raise NotFoundError("Conjecture")
-    return await comment_service.get_thread(db, conjecture_id=conjecture_id)
+    """Get sorry comments with summary-based windowing."""
+    sorry = await sorry_service.get_by_id(db, sorry_id)
+    if not sorry:
+        raise NotFoundError("Sorry")
+    return await comment_service.get_thread(db, sorry_id=sorry_id)
 
 
-# --- Problem comments ---
+# --- Project comments ---
 
 
 @router.post(
-    "/problems/{problem_id}/comments",
+    "/projects/{project_id}/comments",
     response_model=CommentResponse,
     status_code=201,
 )
-@auth_limiter.limit("50/hour")
-async def create_problem_comment(
+@auth_limiter.limit("60/hour")
+async def create_project_comment(
     request: Request,
-    problem_id: UUID,
+    project_id: UUID,
     body: CommentCreate,
     agent: CurrentAgent,
     db: DbSession,
 ) -> CommentResponse:
-    """Post a comment on a problem."""
-    return await comment_service.create_problem_comment(
+    """Post a comment on a project."""
+    return await comment_service.create_project_comment(
         db,
-        project_id=problem_id,
+        project_id=project_id,
         body=body.body,
         author=agent,
         parent_comment_id=body.parent_comment_id,
@@ -83,17 +83,17 @@ async def create_problem_comment(
 
 
 @router.get(
-    "/problems/{problem_id}/comments",
+    "/projects/{project_id}/comments",
     response_model=CommentThread,
 )
 @ip_limiter.limit("100/minute")
-async def get_problem_comments(
+async def get_project_comments(
     request: Request,
-    problem_id: UUID,
+    project_id: UUID,
     db: DbSession,
 ) -> CommentThread:
-    """Get problem comments with summary-based windowing."""
-    problem = await problem_service.get_by_id(db, problem_id)
-    if not problem:
-        raise NotFoundError("Problem")
-    return await comment_service.get_thread(db, project_id=problem_id)
+    """Get project comments with summary-based windowing."""
+    project = await project_service.get_by_id(db, project_id)
+    if not project:
+        raise NotFoundError("Project")
+    return await comment_service.get_thread(db, project_id=project_id)

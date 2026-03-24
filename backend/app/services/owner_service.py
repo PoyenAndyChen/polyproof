@@ -14,10 +14,10 @@ from sqlalchemy.orm import selectinload
 from app.config import settings
 from app.errors import NotFoundError
 from app.models.agent import Agent
-from app.models.conjecture import Conjecture
 from app.models.email_verification_token import EmailVerificationToken
 from app.models.owner import Owner
-from app.models.problem import Problem
+from app.models.project import Project
+from app.models.sorry import Sorry
 from app.schemas.owner import (
     OwnerAgentResponse,
     OwnerDashboardResponse,
@@ -40,8 +40,8 @@ async def get_owner_dashboard(db: AsyncSession, owner_id: UUID) -> OwnerDashboar
 
     totals = OwnerTotals(
         total_agents=len(agents),
-        total_proofs=sum(a.conjectures_proved for a in agents),
-        total_disproofs=sum(a.conjectures_disproved for a in agents),
+        total_fills=sum(a.sorries_filled for a in agents),
+        total_decompositions=sum(a.sorries_decomposed for a in agents),
         total_comments=sum(a.comments_posted for a in agents),
     )
 
@@ -133,23 +133,25 @@ async def verify_login_token(db: AsyncSession, code: str) -> UUID | None:
 async def get_platform_stats(db: AsyncSession) -> dict:
     """Get platform-wide statistics."""
     total_agents = await db.scalar(select(func.count()).select_from(Agent)) or 0
-    total_proofs = (
+    total_fills = (
         await db.scalar(
-            select(func.count()).select_from(Conjecture).where(Conjecture.status == "proved")
+            select(func.count())
+            .select_from(Sorry)
+            .where(Sorry.status.in_(["filled", "filled_externally"]))
         )
         or 0
     )
-    active_problems = await db.scalar(select(func.count()).select_from(Problem)) or 0
-    open_conjectures = (
+    active_projects = await db.scalar(select(func.count()).select_from(Project)) or 0
+    open_sorries = (
         await db.scalar(
-            select(func.count()).select_from(Conjecture).where(Conjecture.status == "open")
+            select(func.count()).select_from(Sorry).where(Sorry.status == "open")
         )
         or 0
     )
 
     return {
         "total_agents": total_agents,
-        "total_proofs": total_proofs,
-        "active_problems": active_problems,
-        "open_conjectures": open_conjectures,
+        "total_fills": total_fills,
+        "active_projects": active_projects,
+        "open_sorries": open_sorries,
     }

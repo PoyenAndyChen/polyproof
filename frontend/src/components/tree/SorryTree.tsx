@@ -1,16 +1,16 @@
 import { Link } from 'react-router-dom'
-import { ChevronRight, ChevronDown, MessageSquare, Check, X } from 'lucide-react'
+import { ChevronRight, ChevronDown, Check } from 'lucide-react'
 import { cn, truncate } from '../../lib/utils'
+import type { FlatSorryNode } from '../../lib/utils'
 import { ROUTES } from '../../lib/constants'
 import { useUIStore } from '../../store/ui'
-import LaTeXText from '../ui/LaTeXText'
-import type { TreeNode, ConjectureStatus, Priority } from '../../types'
+import type { Priority } from '../../types'
 
-const statusDot: Record<ConjectureStatus, string> = {
+const statusDot: Record<string, string> = {
   open: 'bg-gray-400',
   decomposed: 'bg-blue-500',
-  proved: 'bg-green-500',
-  disproved: 'bg-red-500',
+  filled: 'bg-green-500',
+  filled_externally: 'bg-emerald-400',
   invalid: 'bg-gray-300',
 }
 
@@ -21,37 +21,39 @@ const priorityIndicator: Record<Priority, string> = {
   low: 'border-l-transparent',
 }
 
-interface ProofTreeProps {
-  tree: TreeNode[]
+interface SorryTreeProps {
+  tree: FlatSorryNode[]
 }
 
-export default function ProofTree({ tree }: ProofTreeProps) {
+export default function SorryTree({ tree }: SorryTreeProps) {
   const { treeCollapsed, toggleCollapse } = useUIStore()
 
   // Build parent -> children map
-  const childrenMap = new Map<string | null, TreeNode[]>()
+  const childrenMap = new Map<string | undefined, FlatSorryNode[]>()
   for (const node of tree) {
-    const parentId = node.parent_id
+    const parentId = node.parent_sorry_id
     if (!childrenMap.has(parentId)) {
       childrenMap.set(parentId, [])
     }
     childrenMap.get(parentId)!.push(node)
   }
 
-  const rootNodes = childrenMap.get(null) ?? []
+  const rootNodes = childrenMap.get(undefined) ?? []
 
-  function renderNode(node: TreeNode, depth: number): React.ReactNode {
+  function renderNode(node: FlatSorryNode, depth: number): React.ReactNode {
     const children = childrenMap.get(node.id) ?? []
     const isCollapsed = treeCollapsed.has(node.id)
     const hasChildren = children.length > 0
     const isInvalid = node.status === 'invalid'
+
+    const label = node.declaration_name + (node.sorry_index > 0 ? ` #${node.sorry_index}` : '')
 
     return (
       <div key={node.id}>
         <div
           className={cn(
             'flex items-center gap-2 border-b border-gray-100 border-l-2 py-2.5 pr-3 transition-colors hover:bg-gray-50',
-            priorityIndicator[node.priority],
+            priorityIndicator[node.priority as Priority] ?? 'border-l-transparent',
             isInvalid && 'opacity-50',
           )}
           style={{ paddingLeft: `${depth * 24 + 12}px` }}
@@ -73,29 +75,34 @@ export default function ProofTree({ tree }: ProofTreeProps) {
           )}
 
           {/* Status dot */}
-          <div className={cn('h-2.5 w-2.5 shrink-0 rounded-full', statusDot[node.status])} />
+          <div className={cn('h-2.5 w-2.5 shrink-0 rounded-full', statusDot[node.status] ?? 'bg-gray-400')} />
 
-          {/* Description (clickable) */}
+          {/* Declaration name (clickable) */}
           <Link
-            to={ROUTES.CONJECTURE(node.id)}
+            to={ROUTES.SORRY(node.id)}
             className={cn(
-              'min-w-0 flex-1 text-sm hover:text-blue-600',
+              'min-w-0 flex-1 font-mono text-sm hover:text-blue-600',
               isInvalid && 'text-gray-400 line-through',
               !isInvalid && 'text-gray-800',
             )}
           >
-            <LaTeXText>{truncate(node.description || node.lean_statement, 80)}</LaTeXText>
+            {truncate(label, 60)}
           </Link>
 
-          {/* Status icons */}
-          {node.status === 'proved' && <Check className="h-3.5 w-3.5 shrink-0 text-green-600" />}
-          {node.status === 'disproved' && <X className="h-3.5 w-3.5 shrink-0 text-red-600" />}
+          {/* Goal state preview */}
+          <span className="hidden text-xs text-gray-400 sm:inline">
+            {truncate(node.goal_state, 40)}
+          </span>
 
-          {/* Comment count */}
-          {node.comment_count > 0 && (
-            <span className="inline-flex shrink-0 items-center gap-0.5 text-xs text-gray-400">
-              <MessageSquare className="h-3 w-3" />
-              {node.comment_count}
+          {/* Status icons */}
+          {(node.status === 'filled' || node.status === 'filled_externally') && (
+            <Check className="h-3.5 w-3.5 shrink-0 text-green-600" />
+          )}
+
+          {/* Active agents */}
+          {node.active_agents > 0 && (
+            <span className="shrink-0 text-xs text-gray-400">
+              {node.active_agents} working
             </span>
           )}
         </div>

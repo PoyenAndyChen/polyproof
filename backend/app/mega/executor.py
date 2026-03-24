@@ -10,8 +10,6 @@ from uuid import UUID
 import httpx
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.services import lean_client
-
 logger = logging.getLogger(__name__)
 
 _FETCH_URL_MAX_CHARS = 10_000
@@ -34,12 +32,10 @@ async def execute_tool(
     try:
         if tool_name == "verify_lean":
             return await _verify_lean(arguments, db=db)
-        elif tool_name == "test_sorry_proof":
-            return await _test_sorry_proof(arguments, db=db, project_id=project_id)
-        elif tool_name == "update_decomposition":
-            return await _update_decomposition(arguments, db=db, mega_agent_id=mega_agent_id)
-        elif tool_name == "revert_decomposition":
-            return await _revert_decomposition(arguments, db=db, mega_agent_id=mega_agent_id)
+        elif tool_name == "verify_freeform":
+            return await _verify_freeform(arguments, db=db)
+        elif tool_name == "fill_sorry":
+            return await _fill_sorry(arguments, db=db, mega_agent_id=mega_agent_id)
         elif tool_name == "set_priority":
             return await _set_priority(
                 arguments, db=db, mega_agent_id=mega_agent_id, project_id=project_id
@@ -48,10 +44,6 @@ async def execute_tool(
             return await _post_comment(
                 arguments, db=db, mega_agent_id=mega_agent_id, project_id=project_id
             )
-        elif tool_name == "submit_proof":
-            return await _submit_proof(arguments, db=db, mega_agent_id=mega_agent_id)
-        elif tool_name == "submit_disproof":
-            return await _submit_disproof(arguments, db=db, mega_agent_id=mega_agent_id)
         elif tool_name == "fetch_url":
             return await _fetch_url(arguments)
         else:
@@ -65,67 +57,54 @@ async def execute_tool(
 
 
 async def _verify_lean(args: dict, *, db: AsyncSession) -> dict:
-    """Verify Lean code privately. Nothing stored. Sorry is rejected."""
-    lean_code = args["lean_code"]
-    conjecture_id = args.get("conjecture_id")
+    """Verify tactics against a sorry's context. Sorry IS allowed."""
+    from app.models.sorry import Sorry
+    from app.services.lean_client import verify_fill
 
-    if conjecture_id:
-        from app.models.conjecture import Conjecture
-        from app.services.proof_service import _get_lean_header
+    sorry_id = UUID(args["sorry_id"])
+    tactics = args["tactics"]
 
-        conjecture = await db.get(Conjecture, UUID(conjecture_id))
-        if not conjecture:
-            return {"status": "error", "error": f"Conjecture {conjecture_id} not found."}
-        lean_header = await _get_lean_header(db, conjecture.project_id)
-        result = await lean_client.verify_proof(
-            lean_statement=conjecture.lean_statement,
-            tactics=lean_code,
-            conjecture_id=UUID(conjecture_id),
-            lean_header=lean_header,
-        )
-    else:
-        result = await lean_client.verify_freeform(lean_code)
+    sorry = await db.get(Sorry, sorry_id)
+    if not sorry:
+        return {"status": "error", "error": f"Sorry {sorry_id} not found."}
 
+    result = await verify_fill(
+        goal_state=sorry.goal_state,
+        tactics=tactics,
+        sorry_id=sorry.id,
+        project_id=sorry.project_id,
+        allow_sorry=True,
+    )
     return {"status": result.status, "error": result.error}
 
 
-async def _test_sorry_proof(args: dict, *, db: AsyncSession, project_id: UUID) -> dict:
-    """Test a sorry-proof before decomposition. Sorry is allowed.
+async def _verify_freeform(args: dict, *, db: AsyncSession) -> dict:
+    """Verify freeform Lean code in a project context."""
+    from app.services.lean_client import verify_freeform
 
-    Prepends the problem's lean_header (imports + variables) automatically.
-    The mega agent sends only the theorem body.
-    """
-    from app.services.proof_service import _get_lean_header
+    project_id = UUID(args["project_id"])
+    code = args["code"]
 
-    sorry_proof = args["sorry_proof"]
-    lean_header = await _get_lean_header(db, project_id)
-    result = await lean_client.verify_sorry_proof(sorry_proof, lean_header=lean_header)
+    result = await verify_freeform(code, project_id=project_id)
     return {"status": result.status, "error": result.error}
 
 
-async def _update_decomposition(args: dict, *, db: AsyncSession, mega_agent_id: UUID) -> dict:
-    """Create or modify a decomposition via decomposition_service."""
-    from app.services import decomposition_service
+async def _fill_sorry(args: dict, *, db: AsyncSession, mega_agent_id: UUID) -> dict:
+    """Submit a fill for a sorry via the async job queue."""
+    from app.services import fill_service
 
-    return await decomposition_service.update(
-        parent_id=UUID(args["parent_id"]),
-        children=args["children"],
-        sorry_proof=args["sorry_proof"],
-        mega_agent_id=mega_agent_id,
+    result = await fill_service.submit_fill(
         db=db,
+        sorry_id=UUID(args["sorry_id"]),
+        tactics=args["tactics"],
+        description=args["description"],
+        agent_id=mega_agent_id,
     )
 
-
-async def _revert_decomposition(args: dict, *, db: AsyncSession, mega_agent_id: UUID) -> dict:
-    """Revert a decomposition via decomposition_service."""
-    from app.services import decomposition_service
-
-    return await decomposition_service.revert(
-        conjecture_id=UUID(args["conjecture_id"]),
-        reason=args["reason"],
-        mega_agent_id=mega_agent_id,
-        db=db,
-    )
+    # Convert UUID values to strings for JSON serialization
+    if "job_id" in result:
+        result["job_id"] = str(result["job_id"])
+    return result
 
 
 async def _set_priority(
@@ -135,11 +114,11 @@ async def _set_priority(
     mega_agent_id: UUID,
     project_id: UUID,
 ) -> dict:
-    """Set conjecture priority via conjecture_service."""
-    from app.services import conjecture_service
+    """Set sorry priority via sorry_service."""
+    from app.services import sorry_service
 
-    return await conjecture_service.set_priority(
-        conjecture_id=UUID(args["conjecture_id"]),
+    return await sorry_service.set_priority(
+        sorry_id=UUID(args["sorry_id"]),
         priority=args["priority"],
         mega_agent_id=mega_agent_id,
         project_id=project_id,
@@ -156,62 +135,39 @@ async def _post_comment(
 ) -> dict:
     """Post a comment via comment_service."""
     from app.models.agent import Agent
-    from app.models.conjecture import Conjecture
     from app.services import comment_service
 
-    raw_conjecture_id = args.get("conjecture_id") or None
-    raw_project_id = args.get("problem_id") or None
+    target_id = args["target_id"]
     body = args["body"]
     is_summary = args.get("is_summary", False)
-    raw_parent_comment_id = args.get("parent_comment_id") or None
+    is_project_comment = args.get("is_project_comment", False)
 
-    # Parse UUIDs safely
-    def _safe_uuid(val: str | None) -> UUID | None:
-        if not val:
-            return None
-        try:
-            return UUID(val)
-        except ValueError:
-            return None
-
-    target_conjecture_id = _safe_uuid(raw_conjecture_id)
-    target_project_id = _safe_uuid(raw_project_id)
-    target_parent_comment_id = _safe_uuid(raw_parent_comment_id)
-
-    # If the LLM passed a conjecture ID, verify it exists
-    if target_conjecture_id:
-        conj = await db.get(Conjecture, target_conjecture_id)
-        if not conj:
-            # Maybe it passed a conjecture ID as project_id — try the other field
-            if target_project_id:
-                conj = await db.get(Conjecture, target_project_id)
-                if conj:
-                    target_conjecture_id = target_project_id
-                    target_project_id = None
-
-    # Fallback: always use the project_id from context for project comments
-    if not target_conjecture_id and not target_project_id:
-        target_project_id = project_id
+    # Parse target UUID
+    try:
+        target_uuid = UUID(target_id)
+    except ValueError:
+        return {"status": "error", "error": f"Invalid UUID: {target_id}"}
 
     mega_agent = await db.get(Agent, mega_agent_id)
+    if not mega_agent:
+        return {"status": "error", "error": "Mega agent not found"}
 
-    if target_conjecture_id:
-        comment = await comment_service.create_conjecture_comment(
+    if is_project_comment:
+        comment = await comment_service.create_project_comment(
             db=db,
-            conjecture_id=target_conjecture_id,
+            project_id=target_uuid,
             body=body,
             author=mega_agent,
             is_summary=is_summary,
-            parent_comment_id=target_parent_comment_id,
         )
     else:
-        comment = await comment_service.create_problem_comment(
+        # Default: treat target_id as a sorry_id
+        comment = await comment_service.create_sorry_comment(
             db=db,
-            project_id=target_project_id,
+            sorry_id=target_uuid,
             body=body,
             author=mega_agent,
             is_summary=is_summary,
-            parent_comment_id=target_parent_comment_id,
         )
 
     return {
@@ -219,32 +175,6 @@ async def _post_comment(
         "comment_id": str(comment.id),
         "is_summary": is_summary,
     }
-
-
-async def _submit_proof(args: dict, *, db: AsyncSession, mega_agent_id: UUID) -> dict:
-    """Submit a proof via proof_service."""
-    from app.services import proof_service
-
-    result = await proof_service.submit_proof(
-        conjecture_id=UUID(args["conjecture_id"]),
-        lean_code=args["lean_code"],
-        agent_id=mega_agent_id,
-        db=db,
-    )
-    return result.model_dump(mode="json") if hasattr(result, "model_dump") else result
-
-
-async def _submit_disproof(args: dict, *, db: AsyncSession, mega_agent_id: UUID) -> dict:
-    """Submit a disproof via proof_service."""
-    from app.services import proof_service
-
-    result = await proof_service.submit_disproof(
-        conjecture_id=UUID(args["conjecture_id"]),
-        lean_code=args["lean_code"],
-        agent_id=mega_agent_id,
-        db=db,
-    )
-    return result.model_dump(mode="json") if hasattr(result, "model_dump") else result
 
 
 def _is_safe_url(url: str) -> bool:

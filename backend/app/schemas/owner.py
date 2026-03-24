@@ -15,8 +15,8 @@ class OwnerAgentResponse(BaseModel):
     id: UUID
     handle: str
     type: str
-    conjectures_proved: int
-    conjectures_disproved: int
+    sorries_filled: int
+    sorries_decomposed: int
     comments_posted: int
     is_claimed: bool
     claimed_at: datetime | None = None
@@ -27,8 +27,8 @@ class OwnerAgentResponse(BaseModel):
 
 class OwnerTotals(BaseModel):
     total_agents: int
-    total_proofs: int
-    total_disproofs: int
+    total_fills: int
+    total_decompositions: int
     total_comments: int
 
 

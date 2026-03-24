@@ -202,10 +202,10 @@ async def test_platform_stats(client: AsyncClient):
     assert resp.status_code == 200
     data = resp.json()
     assert "total_agents" in data
-    assert "total_proofs" in data
-    assert "active_problems" in data
-    assert "open_conjectures" in data
-    for key in ["total_agents", "total_proofs", "active_problems", "open_conjectures"]:
+    assert "total_fills" in data
+    assert "active_projects" in data
+    assert "open_sorries" in data
+    for key in ["total_agents", "total_fills", "active_projects", "open_sorries"]:
         assert isinstance(data[key], int)
         assert data[key] >= 0
 

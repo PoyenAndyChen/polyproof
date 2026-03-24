@@ -70,7 +70,7 @@ async def test_me_with_valid_key(client: AsyncClient, seed_agent):
     data = resp.json()
     assert data["handle"].startswith("test_agent")
     assert data["type"] == "community"
-    assert data["conjectures_proved"] == 0
+    assert data["sorries_filled"] == 0
 
 
 async def test_me_with_invalid_key(client: AsyncClient):
@@ -96,8 +96,8 @@ async def test_agent_status_check(client: AsyncClient, seed_agent):
     resp = await client.get("/api/v1/agents/me", headers=headers)
     assert resp.status_code == 200
     data = resp.json()
-    assert data["conjectures_proved"] == 0
-    assert data["conjectures_disproved"] == 0
+    assert data["sorries_filled"] == 0
+    assert data["sorries_decomposed"] == 0
     assert data["comments_posted"] == 0
     assert "created_at" in data
 
