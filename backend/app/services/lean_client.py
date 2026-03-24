@@ -16,7 +16,7 @@ from app.config import settings
 _TIMEOUT = 120.0  # HTTP timeout (Kimina has its own internal timeout too)
 _LEAN_TIMEOUT = 60  # Lean compilation timeout sent to Kimina
 
-# Forbidden keywords checked against agent-submitted code (tactics, full programs).
+# Forbidden keywords for fill/proof submissions (tactics that get committed).
 FORBIDDEN_KEYWORDS = [
     "sorry",
     "axiom ",
@@ -39,6 +39,25 @@ FORBIDDEN_KEYWORDS = [
     "#check ",
     "#check\n",
     "#check\t",
+]
+
+# Reduced list for freeform exploration. Allows #check, #eval, sorry
+# (freeform code is never committed — it's compile-and-discard).
+FREEFORM_FORBIDDEN_KEYWORDS = [
+    "axiom ",
+    "axiom\n",
+    "axiom\t",
+    "constant ",
+    "opaque ",
+    "unsafe ",
+    "native_decide",
+    "implemented_by",
+    "unsafeAxiom",
+    "@[extern",
+    "Lean.Elab",
+    "elab ",
+    "macro ",
+    "syntax ",
 ]
 
 ALLOWED_AXIOMS = {"propext", "Classical.choice", "Quot.sound"}
@@ -116,11 +135,12 @@ async def verify_freeform(
     code: str,
     import_path: str | None = None,
 ) -> LeanResult:
-    """Compile code as-is for the /verify endpoint (freeform).
+    """Compile code as-is for freeform exploration.
 
-    Rejects sorry and forbidden keywords.
+    Allows #check, #eval, #print, sorry (exploration tools).
+    Blocks dangerous constructs (axiom, opaque, unsafe, etc.).
     """
-    rejected = _check_forbidden(code)
+    rejected = _check_freeform_forbidden(code)
     if rejected:
         return rejected
 
@@ -128,7 +148,7 @@ async def verify_freeform(
         header = _build_header(import_path=import_path)
         if "import" not in code[:50]:
             code = header + code
-    return await _send_to_lean(code, allow_sorry=False)
+    return await _send_to_lean(code, allow_sorry=True)
 
 
 def _build_header(*, import_path: str | None = None) -> str:
@@ -151,8 +171,18 @@ def _build_header(*, import_path: str | None = None) -> str:
 
 def _check_forbidden(tactics: str) -> LeanResult | None:
     """Scan agent tactics for forbidden constructs. Returns LeanResult on rejection."""
-    tactics_lower = tactics.lower()
-    for keyword in FORBIDDEN_KEYWORDS:
+    return _check_keywords(tactics, FORBIDDEN_KEYWORDS)
+
+
+def _check_freeform_forbidden(code: str) -> LeanResult | None:
+    """Scan freeform code for dangerous constructs (allows #check, #eval, sorry)."""
+    return _check_keywords(code, FREEFORM_FORBIDDEN_KEYWORDS)
+
+
+def _check_keywords(code: str, keywords: list[str]) -> LeanResult | None:
+    """Scan code against a keyword list. Returns LeanResult on rejection."""
+    tactics_lower = code.lower()
+    for keyword in keywords:
         if keyword.lower() in tactics_lower:
             return LeanResult(
                 status="rejected",
