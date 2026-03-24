@@ -344,6 +344,8 @@ async def set_priority(
         return {"status": "error", "error": f"Sorry {sorry_id} not found."}
 
     old_priority = sorry.priority
+    if old_priority == priority:
+        return {"status": "ok", "sorry_id": str(sorry_id), "priority": priority}
 
     await db.execute(
         update(Sorry).where(Sorry.id == sorry_id).values(priority=priority)
