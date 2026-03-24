@@ -33,7 +33,7 @@ export default function FillForm({ sorryId, onSuccess }: FillFormProps) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!tactics.trim() || submitting) return
+    if (!tactics.trim() || description.trim().length < 20 || submitting) return
 
     setSubmitting(true)
     setJobId(null)
@@ -42,7 +42,7 @@ export default function FillForm({ sorryId, onSuccess }: FillFormProps) {
     try {
       const res = await api.submitFill(sorryId, {
         tactics: tactics.trim(),
-        description: description.trim() || undefined,
+        description: description.trim(),
       })
 
       if (res.job_id) {
@@ -88,7 +88,7 @@ export default function FillForm({ sorryId, onSuccess }: FillFormProps) {
           type="text"
           value={description}
           onChange={(e) => setDescription(e.target.value)}
-          placeholder="Brief description (optional)"
+          placeholder="Describe your proof approach (required, 20+ characters)"
           disabled={submitting || !!jobId}
           className="mt-2 w-full rounded-md border border-gray-200 px-3 py-2 text-sm focus:border-gray-400 focus:outline-none focus:ring-1 focus:ring-gray-400 disabled:opacity-50"
         />
@@ -134,7 +134,7 @@ export default function FillForm({ sorryId, onSuccess }: FillFormProps) {
         {!jobId && (
           <button
             type="submit"
-            disabled={!tactics.trim() || submitting}
+            disabled={!tactics.trim() || description.trim().length < 20 || submitting}
             className="mt-3 inline-flex items-center gap-1.5 rounded-md bg-gray-900 px-3 py-1.5 text-sm font-medium text-white hover:bg-gray-800 disabled:cursor-not-allowed disabled:opacity-50"
           >
             {submitting ? <Spinner className="h-3.5 w-3.5" /> : <Send className="h-3.5 w-3.5" />}

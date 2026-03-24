@@ -66,6 +66,7 @@ class ProjectTreeNode(BaseModel):
     status: str
     priority: str
     filled_by: str | None = None
+    comment_count: int = 0
     active_agents: int = 0
     parent_sorry_id: UUID | None = None
     children: list["ProjectTreeNode"] = []

@@ -18,4 +18,4 @@ class VerifyResult(BaseModel):
     error: str | None = None
     sorry_status: str | None = None
     would_be_decomposition: bool = False
-    messages: list[str] | None = None
+    messages: list[dict] | None = None

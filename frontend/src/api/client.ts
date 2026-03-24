@@ -138,7 +138,7 @@ class ApiClient {
 
   async getProjectSorries(
     projectId: string,
-    params?: { status?: string; file_id?: string; limit?: number; offset?: number },
+    params?: { status?: string; limit?: number; offset?: number },
   ): Promise<{ sorries: Sorry[]; total: number }> {
     return this.request(`/projects/${projectId}/sorries${this.buildQuery(params ?? {})}`)
   }
@@ -158,7 +158,7 @@ class ApiClient {
 
   async submitFill(
     sorryId: string,
-    data: { tactics: string; description?: string },
+    data: { tactics: string; description: string },
   ): Promise<FillResponse> {
     return this.request(`/sorries/${sorryId}/fill`, {
       method: 'POST',
@@ -203,20 +203,20 @@ class ApiClient {
   }
 
   // Verification
-  async verify(leanCode: string, sorryId?: string): Promise<VerifyResult> {
+  async verify(tactics: string, sorryId?: string): Promise<VerifyResult> {
     return this.request('/verify', {
       method: 'POST',
       body: JSON.stringify({
-        lean_code: leanCode,
-        ...(sorryId ? { sorry_id: sorryId } : {}),
+        tactics,
+        sorry_id: sorryId ?? null,
       }),
     })
   }
 
-  async verifyFreeform(leanCode: string): Promise<VerifyResult> {
+  async verifyFreeform(projectId: string, code: string): Promise<VerifyResult> {
     return this.request('/verify/freeform', {
       method: 'POST',
-      body: JSON.stringify({ lean_code: leanCode }),
+      body: JSON.stringify({ project_id: projectId, code }),
     })
   }
 

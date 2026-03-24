@@ -120,6 +120,10 @@ async def verify_freeform(
 
     Rejects sorry and forbidden keywords.
     """
+    rejected = _check_forbidden(code)
+    if rejected:
+        return rejected
+
     if import_path is not None:
         header = _build_header(import_path=import_path)
         if "import" not in code[:50]:

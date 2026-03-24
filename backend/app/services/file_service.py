@@ -1,5 +1,6 @@
 """Service for serving tracked file content from the workspace."""
 
+import asyncio
 import os
 from uuid import UUID
 
@@ -30,5 +31,8 @@ async def get_content(db: AsyncSession, file_id: UUID) -> str | None:
     if not os.path.isfile(full_path):
         return None
 
-    with open(full_path) as f:
-        return f.read()
+    def _read() -> str:
+        with open(full_path) as f:
+            return f.read()
+
+    return await asyncio.to_thread(_read)
