@@ -20,7 +20,8 @@ from app.mega.tools import MEGA_AGENT_TOOLS
 logger = logging.getLogger(__name__)
 
 _MODEL = "gpt-5.4"
-_MAX_TOOL_CALLS = 50
+_DEFAULT_MAX_TOOL_CALLS = 50
+_PROJECT_CREATED_MAX_TOOL_CALLS = 200
 
 
 async def run_mega_agent(
@@ -45,6 +46,15 @@ async def run_mega_agent(
     )
 
     tools = MEGA_AGENT_TOOLS
+
+    # Project init gets a larger budget — it needs to read all sorry's,
+    # set priorities, and post context summaries for every sorry.
+    trigger_type = trigger.get("trigger", "")
+    max_tool_calls = (
+        _PROJECT_CREATED_MAX_TOOL_CALLS
+        if trigger_type == "project_created"
+        else _DEFAULT_MAX_TOOL_CALLS
+    )
 
     # Initial call
     total_tool_calls = 0
@@ -74,7 +84,7 @@ async def run_mega_agent(
         total_output_tokens += getattr(response.usage, "output_tokens", 0)
 
     # Agent loop: execute tools and feed results back
-    while response.output and total_tool_calls < _MAX_TOOL_CALLS:
+    while response.output and total_tool_calls < max_tool_calls:
         # Log any text the model produced
         for item in response.output:
             if hasattr(item, "text") and item.text:
@@ -87,7 +97,7 @@ async def run_mega_agent(
         tool_results = []
         for call in tool_calls:
             total_tool_calls += 1
-            if total_tool_calls > _MAX_TOOL_CALLS:
+            if total_tool_calls > max_tool_calls:
                 tool_results.append(
                     {
                         "type": "function_call_output",
@@ -95,7 +105,7 @@ async def run_mega_agent(
                         "output": json.dumps(
                             {
                                 "status": "error",
-                                "error": f"Tool call limit reached ({_MAX_TOOL_CALLS}).",
+                                "error": f"Tool call limit reached ({max_tool_calls}).",
                             }
                         ),
                     }
@@ -126,7 +136,7 @@ async def run_mega_agent(
             logger.info(
                 "Tool call %d/%d: %s(%s)",
                 total_tool_calls,
-                _MAX_TOOL_CALLS,
+                max_tool_calls,
                 call.name,
                 args_preview,
             )
@@ -151,10 +161,10 @@ async def run_mega_agent(
                 }
             )
 
-        if total_tool_calls >= _MAX_TOOL_CALLS:
+        if total_tool_calls >= max_tool_calls:
             logger.warning(
                 "Mega agent hit tool call cap (%d) for project %s",
-                _MAX_TOOL_CALLS,
+                max_tool_calls,
                 project_id,
             )
             break
