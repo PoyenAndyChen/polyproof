@@ -231,6 +231,33 @@ async def get_overview(db: AsyncSession, project: Project) -> dict:
         )
         child_counts = dict(cc2_result.all())
 
+    # Batch: latest is_summary comment per sorry
+    summaries: dict[UUID, str] = {}
+    if sorry_ids:
+        summary_result = await db.execute(
+            text("""
+                SELECT DISTINCT ON (sorry_id) sorry_id, body
+                FROM comments
+                WHERE sorry_id = ANY(:ids) AND is_summary = true
+                ORDER BY sorry_id, created_at DESC
+            """),
+            {"ids": sorry_ids},
+        )
+        for row in summary_result.all():
+            summaries[row.sorry_id] = row.body
+
+    # Project-level summary (latest is_summary comment on the project)
+    project_summary_result = await db.execute(
+        text("""
+            SELECT body FROM comments
+            WHERE project_id = :pid AND is_summary = true
+            ORDER BY created_at DESC LIMIT 1
+        """),
+        {"pid": str(project.id)},
+    )
+    project_summary_row = project_summary_result.first()
+    project_summary = project_summary_row.body if project_summary_row else None
+
     # Batch: filled_by agent handles
     filled_by_ids = {row[0].filled_by for row in rows if row[0].filled_by is not None}
     agent_handles: dict[UUID, str] = {}
@@ -256,10 +283,11 @@ async def get_overview(db: AsyncSession, project: Project) -> dict:
                 "comment_count": comment_counts.get(sorry.id, 0),
                 "parent_sorry_id": sorry.parent_sorry_id,
                 "child_count": child_counts.get(sorry.id, 0),
+                "summary": summaries.get(sorry.id),
             }
         )
 
-    return {"project": project_data, "sorries": sorries}
+    return {"project": project_data, "sorries": sorries, "summary": project_summary}
 
 
 # ---------------------------------------------------------------------------

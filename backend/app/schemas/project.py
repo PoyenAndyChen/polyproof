@@ -92,8 +92,10 @@ class ProjectOverviewSorry(BaseModel):
     comment_count: int = 0
     parent_sorry_id: UUID | None = None
     child_count: int = 0
+    summary: str | None = None
 
 
 class ProjectOverview(BaseModel):
     project: ProjectResponse
     sorries: list[ProjectOverviewSorry]
+    summary: str | None = None
