@@ -272,7 +272,7 @@ async def process_fill_job(db: AsyncSession, job: Job) -> dict:
             commit_msg = (
                 f"fill: {sorry.declaration_name}\n\n"
                 f"{job.description or 'sorry filled'}\n\n"
-                f"Agent: @{agent_handle or 'unknown'}"
+                f"Filled by: {agent_handle or 'unknown'}"
             )
             new_sha = await github_service.commit_file(
                 repo,
