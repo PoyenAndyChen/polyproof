@@ -10,7 +10,12 @@ from app.errors import NotFoundError
 from app.models.project import Project
 from app.models.sorry import Sorry
 from app.models.tracked_file import TrackedFile
-from app.schemas.verify import FreeformVerifyRequest, VerifyRequest, VerifyResult
+from app.schemas.verify import (
+    FreeformVerifyRequest,
+    RemainingGoal,
+    VerifyRequest,
+    VerifyResult,
+)
 from app.services import github_service, lean_client, project_service
 
 logger = logging.getLogger(__name__)
@@ -69,12 +74,20 @@ async def verify_lean(
         allow_sorry=True,
     )
 
+    # Convert LeanSorry objects to RemainingGoal for the response
+    remaining = None
+    if result.sorries:
+        remaining = [
+            RemainingGoal(line=s.line, col=s.col, goal=s.goal) for s in result.sorries if s.goal
+        ]
+
     return VerifyResult(
         status=result.status,
         error=result.error,
         sorry_status=sorry.status,
         would_be_decomposition="sorry" in body.tactics.lower() and result.status == "passed",
         messages=result.messages,
+        remaining_goals=remaining or None,
     )
 
 

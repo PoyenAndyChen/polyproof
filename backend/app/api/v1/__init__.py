@@ -12,7 +12,9 @@ from app.api.v1.files import router as files_router
 from app.api.v1.jobs import router as jobs_router
 from app.api.v1.owners import router as owners_router
 from app.api.v1.projects import router as projects_router
+from app.api.v1.search import router as search_router
 from app.api.v1.sorries import router as sorries_router
+from app.api.v1.suggest import router as suggest_router
 from app.api.v1.verify import router as verify_router
 from app.services import owner_service
 
@@ -25,6 +27,8 @@ api_router.include_router(files_router, prefix="/files", tags=["files"])
 api_router.include_router(jobs_router, prefix="/jobs", tags=["jobs"])
 api_router.include_router(comments_router, tags=["comments"])
 api_router.include_router(verify_router, prefix="/verify", tags=["verify"])
+api_router.include_router(search_router, prefix="/search", tags=["search"])
+api_router.include_router(suggest_router, prefix="/suggest", tags=["suggest"])
 api_router.include_router(config_router, prefix="/config", tags=["config"])
 api_router.include_router(claim_router, prefix="/claim", tags=["claim"])
 api_router.include_router(owners_router, prefix="/owners", tags=["owners"])
