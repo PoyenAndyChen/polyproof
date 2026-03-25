@@ -90,6 +90,8 @@ class ProjectOverviewSorry(BaseModel):
     filled_by_handle: str | None = None
     file_path: str
     comment_count: int = 0
+    parent_sorry_id: UUID | None = None
+    child_count: int = 0
 
 
 class ProjectOverview(BaseModel):

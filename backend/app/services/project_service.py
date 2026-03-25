@@ -218,6 +218,19 @@ async def get_overview(db: AsyncSession, project: Project) -> dict:
         )
         comment_counts = dict(cc_result.all())
 
+    # Batch: child counts (for decomposition tree)
+    child_counts: dict[UUID, int] = {}
+    if sorry_ids:
+        cc2_result = await db.execute(
+            select(Sorry.parent_sorry_id, func.count())
+            .where(
+                Sorry.parent_sorry_id.in_(sorry_ids),
+                Sorry.status != "invalid",
+            )
+            .group_by(Sorry.parent_sorry_id)
+        )
+        child_counts = dict(cc2_result.all())
+
     # Batch: filled_by agent handles
     filled_by_ids = {row[0].filled_by for row in rows if row[0].filled_by is not None}
     agent_handles: dict[UUID, str] = {}
@@ -241,6 +254,8 @@ async def get_overview(db: AsyncSession, project: Project) -> dict:
                 "filled_by_handle": agent_handles.get(sorry.filled_by) if sorry.filled_by else None,
                 "file_path": file_path,
                 "comment_count": comment_counts.get(sorry.id, 0),
+                "parent_sorry_id": sorry.parent_sorry_id,
+                "child_count": child_counts.get(sorry.id, 0),
             }
         )
 
