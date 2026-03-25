@@ -107,11 +107,17 @@ async def process_fill_job(db: AsyncSession, job: Job) -> dict:
     # Detect decomposition: if tactics contain sorry, this is a partial fill
     is_decomposition = _tactics_contain_sorry(job.tactics)
 
+    # Child sorry's have siblings with sorry's in the same declaration.
+    # #print axioms checks the whole declaration, so it always reports
+    # sorryAx from siblings. Allow sorry for child fills — the tactic-level
+    # sorry check above is sufficient.
+    is_child_sorry = sorry.parent_sorry_id is not None
+
     result = await lean_client.verify_in_file(
         file_content=file_content,
         declaration_name=sorry.declaration_name,
         tactics=job.tactics,
-        allow_sorry=is_decomposition,
+        allow_sorry=is_decomposition or is_child_sorry,
         sorry_index=sorry.sorry_index,
     )
 
