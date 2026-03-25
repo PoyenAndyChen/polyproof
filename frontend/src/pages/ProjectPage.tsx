@@ -2,7 +2,7 @@ import { useMemo } from 'react'
 import { useParams } from 'react-router-dom'
 import { useSWRConfig } from 'swr'
 import { Users, MessageSquare, Clock } from 'lucide-react'
-import { useProject, useProjectTree } from '../hooks'
+import { useProject, useProjectTree, useProjectComments } from '../hooks'
 import Layout from '../components/layout/Layout'
 import ProgressBar from '../components/ui/ProgressBar'
 import ErrorBanner from '../components/ui/ErrorBanner'
@@ -16,6 +16,7 @@ export default function ProjectPage() {
   const { id } = useParams<{ id: string }>()
   const { data: project, error: projectError, isLoading: projectLoading, mutate: mutateProject } = useProject(id!)
   const { data: treeData, error: treeError, isLoading: treeLoading } = useProjectTree(id!)
+  const { data: commentsData } = useProjectComments(id!)
 
   const { mutate: globalMutate } = useSWRConfig()
 
@@ -102,6 +103,18 @@ export default function ProjectPage() {
           )}
         </div>
       </div>
+
+      {/* Project Summary */}
+      {commentsData?.summary && (
+        <div className="mb-4 rounded-lg border border-blue-100 bg-blue-50/50 px-5 py-4">
+          <div className="prose prose-sm max-w-none text-gray-700">
+            <MarkdownContent>{commentsData.summary.body}</MarkdownContent>
+          </div>
+          <div className="mt-2 text-xs text-gray-400">
+            Last updated {formatDate(commentsData.summary.created_at)} by @{commentsData.summary.author.handle}
+          </div>
+        </div>
+      )}
 
       {/* Sorry Tree */}
       {flatNodes.length > 0 ? (
