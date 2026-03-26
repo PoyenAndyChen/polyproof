@@ -6,7 +6,7 @@ import re
 from datetime import UTC, datetime
 from uuid import UUID
 
-from sqlalchemy import select, text, update
+from sqlalchemy import func, select, text, update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import settings
@@ -509,6 +509,21 @@ async def _create_child_sorries(
             continue
 
         goal_hash = hashlib.sha256(goal.encode()).hexdigest()[:16]
+
+        # Skip if this child already exists (duplicate fill submission)
+        exists = await db.scalar(
+            select(func.count())
+            .select_from(Sorry)
+            .where(
+                Sorry.file_id == tracked_file.id,
+                Sorry.declaration_name == parent_sorry.declaration_name,
+                Sorry.sorry_index == child_index,
+                Sorry.goal_hash == goal_hash,
+            )
+        )
+        if exists:
+            child_index += 1
+            continue
 
         child = Sorry(
             file_id=tracked_file.id,
