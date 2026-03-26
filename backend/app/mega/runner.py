@@ -153,6 +153,15 @@ async def run_mega_agent(
             result_preview = result_str[:300] + "..." if len(result_str) > 300 else result_str
             logger.info("Tool result: %s", result_preview)
 
+            # Warn model when budget is running low
+            remaining = max_tool_calls - total_tool_calls
+            if remaining <= 5:
+                result_str += (
+                    f"\n\n⚠️ BUDGET WARNING: {remaining} tool calls remaining. "
+                    "Wrap up and post your project-level summary (is_summary=true, "
+                    "is_project_comment=true) before you run out."
+                )
+
             tool_results.append(
                 {
                     "type": "function_call_output",
@@ -166,6 +175,11 @@ async def run_mega_agent(
                 "Mega agent hit tool call cap (%d) for project %s",
                 max_tool_calls,
                 project_id,
+            )
+            # Give the model one final turn to post its mandatory summary
+            await _final_summary_turn(
+                client, tool_results, tools, response.id,
+                project_id, mega_agent_id, db,
             )
             break
 
@@ -203,3 +217,71 @@ async def run_mega_agent(
         "input_tokens": total_input_tokens,
         "output_tokens": total_output_tokens,
     }
+
+
+_FINAL_SUMMARY_MESSAGE = (
+    "TOOL CALL LIMIT REACHED. You MUST post your project-level summary NOW. "
+    "Call post_comment with is_project_comment=true and is_summary=true. "
+    "This is your last action — summarize the current state for the community. "
+    "You have exactly ONE tool call remaining for this."
+)
+
+# Only allow the summary tool in the final turn
+_SUMMARY_ONLY_TOOLS = [
+    t for t in MEGA_AGENT_TOOLS if t.get("name") == "post_comment"
+]
+
+
+async def _final_summary_turn(
+    client: AsyncOpenAI,
+    pending_tool_results: list[dict],
+    tools: list[dict],
+    previous_response_id: str,
+    project_id: UUID,
+    mega_agent_id: UUID,
+    db: AsyncSession,
+) -> None:
+    """Give the model one final turn to post its mandatory project summary."""
+    # Feed back any pending tool results plus the nudge message
+    final_input = pending_tool_results + [
+        {"role": "user", "content": _FINAL_SUMMARY_MESSAGE},
+    ]
+    try:
+        response = await client.responses.create(
+            model=_MODEL,
+            instructions=MEGA_AGENT_SYSTEM_PROMPT,
+            input=final_input,
+            tools=_SUMMARY_ONLY_TOOLS,
+            previous_response_id=previous_response_id,
+        )
+    except Exception:
+        logger.exception(
+            "Final summary turn failed for project %s", project_id,
+        )
+        return
+
+    # Execute at most one post_comment call
+    posted = False
+    for item in response.output:
+        if item.type == "function_call" and item.name == "post_comment":
+            try:
+                args = json.loads(item.arguments)
+            except json.JSONDecodeError:
+                break
+            # Force correct target and flags — the model may have been
+            # working on sorries and might provide a sorry UUID here
+            args["target_id"] = str(project_id)
+            args["is_summary"] = True
+            args["is_project_comment"] = True
+            result = await execute_tool(
+                "post_comment", args,
+                db=db, mega_agent_id=mega_agent_id, project_id=project_id,
+            )
+            logger.info("Final summary posted for project %s: %s", project_id, str(result)[:200])
+            posted = True
+            break
+    if not posted:
+        logger.warning(
+            "Final summary turn: model did not call post_comment for project %s",
+            project_id,
+        )
