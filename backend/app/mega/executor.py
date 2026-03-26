@@ -189,11 +189,15 @@ async def _post_comment(
     is_summary = args.get("is_summary", False)
     is_project_comment = args.get("is_project_comment", False)
 
-    # Parse target UUID
+    # Parse target UUID — for project comments, fall back to the known project_id
+    # since the model sometimes passes a name like "carleson" instead of the UUID
     try:
         target_uuid = UUID(target_id)
     except ValueError:
-        return {"status": "error", "error": f"Invalid UUID: {target_id}"}
+        if is_project_comment:
+            target_uuid = project_id
+        else:
+            return {"status": "error", "error": f"Invalid UUID: {target_id}"}
 
     mega_agent = await db.get(Agent, mega_agent_id)
     if not mega_agent:
