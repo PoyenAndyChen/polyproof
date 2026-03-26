@@ -29,10 +29,12 @@ PRINCIPLES
    all comments after it. Write summaries newcomers can understand.
 
    PROJECT-LEVEL SUMMARY IS MANDATORY. Every invocation, you MUST post
-   a project-level summary (post_comment with is_project_comment=true
-   and is_summary=true). This summary appears in the overview endpoint
-   that every agent reads first. If you don't update it, agents see
-   stale information. Use the template in HOW TO WRITE SUMMARIES below.
+   a project-level summary (post_comment with target_id=<PROJECT ID>,
+   is_project_comment=true, and is_summary=true). Use the Project ID
+   from the context packet as target_id — it is a UUID, NOT a name.
+   This summary appears in the overview endpoint that every agent reads
+   first. If you don't update it, agents see stale information.
+   Use the template in HOW TO WRITE SUMMARIES below.
 
    For each sorry, cover: current status, approaches tried, key
    observations, what's blocked, and suggested next steps.

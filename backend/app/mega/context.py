@@ -48,6 +48,7 @@ async def build_context_packet(
     progress = await _compute_progress(project_id, db)
     sections.append(
         f"PROJECT\n\n"
+        f"Project ID: {project.id}\n"
         f"Title: {project.title}\n"
         f"Description: {project.description}\n"
         f"Upstream repo: {project.upstream_repo}\n"
